@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PedeAí — baixar</title>
+<meta name="description" content="PedeAí — a comanda digital do bar no celular. Baixe o APK de teste." />
+<meta name="theme-color" content="#e5372a" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Figtree:wght@400;600;700;800;900&display=swap" />
+<style>
+  :root { --red:#e5372a; --red-deep:#c22a1e; --ink:#121010; --bone:#f3ede2; --bone-dim:#c9beac; --yellow:#f5c518; --yellow-ink:#2c1e00; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; min-height:100%; }
+  body {
+    background:var(--red); color:var(--bone);
+    font-family:"Figtree",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    line-height:1.5; -webkit-font-smoothing:antialiased;
+    display:flex; flex-direction:column; align-items:center;
+    padding:0 22px calc(40px + env(safe-area-inset-bottom));
+  }
+  .awning { align-self:stretch; height:10px; background:repeating-linear-gradient(90deg,var(--red) 0 22px,#f3ede2 22px 44px); }
+  main { width:100%; max-width:440px; flex:1; display:flex; flex-direction:column; justify-content:center; padding-top:48px; }
+  .mark { width:64px; height:64px; }
+  h1 { font-family:"Anton",sans-serif; text-transform:uppercase; font-size:clamp(44px,14vw,64px); line-height:.86; margin:18px 0 0; }
+  h1 .bang { color:var(--yellow); }
+  .tag { font-size:17px; font-weight:600; margin:14px 0 0; max-width:24ch; opacity:.95; }
+  .chip { display:inline-block; margin-top:20px; background:var(--yellow); color:var(--yellow-ink);
+    font-weight:800; font-size:11px; text-transform:uppercase; letter-spacing:.05em; padding:6px 11px; border-radius:8px; border:2px solid var(--yellow-ink); }
+  .btn {
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    margin-top:26px; width:100%; min-height:62px; border-radius:16px;
+    background:var(--ink); color:var(--bone); border:2px solid #000;
+    font-family:"Anton",sans-serif; text-transform:uppercase; letter-spacing:.03em; font-size:20px;
+    text-decoration:none; box-shadow:0 10px 26px rgba(0,0,0,.35); transition:transform .1s;
+  }
+  .btn:active { transform:translateY(2px) scale(.99); }
+  .btn svg { width:22px; height:22px; }
+  .meta { margin-top:12px; font-size:12px; opacity:.8; font-weight:600; }
+  .how { margin-top:30px; background:rgba(0,0,0,.16); border:1px solid rgba(255,255,255,.18); border-radius:14px; padding:16px 18px; }
+  .how h2 { font-family:"Anton",sans-serif; text-transform:uppercase; font-size:15px; letter-spacing:.04em; margin:0 0 8px; }
+  .how ol { margin:0; padding-left:20px; font-size:14px; }
+  .how li { margin:5px 0; }
+  .foot { margin-top:34px; display:flex; align-items:center; gap:7px; font-size:11px; font-weight:700; opacity:.85; }
+  .foot .dm { display:flex; flex-direction:column; gap:1.5px; }
+  .foot .dm i { display:block; height:3px; border-radius:2px; }
+  .foot .dm i:nth-child(1){ width:13px; background:#3ddc97; }
+  .foot .dm i:nth-child(2){ width:11px; background:#33475e; }
+  .foot .dm i:nth-child(3){ width:9px; background:#1c2733; }
+  .foot .g { color:#3ddc97; }
+  @media (prefers-reduced-motion:reduce){ .btn{transition:none} }
+</style>
+</head>
+<body>
+<div class="awning"></div>
+<main>
+  <svg class="mark" viewBox="0 0 48 48" aria-hidden="true">
+    <rect width="48" height="48" rx="12" fill="#e5372a"/>
+    <g stroke="#f5ecdc" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none">
+      <path d="M11 15h15v22a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3z" fill="#f5c518"/>
+      <path d="M26 17c7 0 10 3.5 10 7s-3.5 6.5-10 5"/>
+      <path d="M8 15c1.6-3 4-3 5.6 0 1.6-3 4-3 5.6 0 1.6-3 4-3 5.6 0 1.6-3 4-3 5.6 0" stroke-width="2.4"/>
+      <circle cx="16.5" cy="24" r="1.6" fill="#f5ecdc" stroke="none"/>
+      <circle cx="20.5" cy="31" r="1.6" fill="#f5ecdc" stroke="none"/>
+    </g>
+  </svg>
+  <h1>Pede<br>Aí<span class="bang">!</span></h1>
+  <p class="tag">A comanda do bar no celular. Anota, soma e fecha a conta — sem papel, sem calculadora, sem internet.</p>
+  <span class="chip">Versão de teste · 7 dias</span>
+
+  <a class="btn" href="PedeAi-v3.0-teste7dias.apk" download>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M4 20h16"/></svg>
+    Baixar o app
+  </a>
+  <div class="meta">APK Android · 4,4 MB · v3.0</div>
+
+  <div class="how">
+    <h2>Como instalar</h2>
+    <ol>
+      <li>Baixe o arquivo no celular Android.</li>
+      <li>Toque no arquivo baixado.</li>
+      <li>Se pedir, permita "instalar de fontes desconhecidas".</li>
+      <li>Abra o PedeAí. O teste dura 7 dias neste aparelho.</li>
+    </ol>
+  </div>
+
+  <div class="foot">
+    <span class="dm"><i></i><i></i><i></i></span>
+    <span><span class="g">deck</span>corp</span>
+  </div>
+</main>
+</body>
+</html>

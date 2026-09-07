@@ -31,8 +31,9 @@
   .promo .sound { position:absolute; right:10px; bottom:10px; width:40px; height:40px; border-radius:12px;
     border:none; background:rgba(0,0,0,.55); color:#fff; display:grid; place-items:center; cursor:pointer; }
   .promo .sound svg { width:20px; height:20px; }
-  h1 { font-family:"Anton",sans-serif; text-transform:uppercase; font-size:clamp(44px,14vw,62px); line-height:.94; margin:18px 0 0; padding-top:.06em; }
-  h1 .bang { color:var(--yellow); margin-left:.04em; }
+  h1 { font-family:"Anton",sans-serif; text-transform:uppercase; font-size:clamp(40px,12.5vw,58px); line-height:1; letter-spacing:-.005em; margin:16px 0 0; white-space:nowrap; }
+  h1 .sp { margin-left:.16em; }
+  h1 .bang { color:var(--yellow); margin-left:.02em; }
   .tag { font-size:17px; font-weight:600; margin:14px 0 0; max-width:24ch; opacity:.95; }
   .chip { display:inline-block; margin-top:20px; background:var(--yellow); color:var(--yellow-ink);
     font-weight:800; font-size:11px; text-transform:uppercase; letter-spacing:.05em; padding:6px 11px; border-radius:8px; border:2px solid var(--yellow-ink); }
@@ -73,7 +74,7 @@
       <circle cx="20.5" cy="31" r="1.6" fill="#f5ecdc" stroke="none"/>
     </g>
   </svg>
-  <h1>Pede<br>Aí<span class="bang">!</span></h1>
+  <h1>Pede<span class="sp">A&iacute;<span class="bang">!</span></span></h1>
   <p class="tag">A comanda do bar no celular. Anota, soma e fecha a conta — sem papel, sem calculadora, sem internet.</p>
 
   <div class="promo">
@@ -85,11 +86,11 @@
 
   <span class="chip">Versão de teste · 7 dias</span>
 
-  <a class="btn" href="PedeAi-v3.3-teste7dias.apk" download>
+  <a class="btn" href="pedeai-latest.apk" download="PedeAi-v3.4-teste7dias.apk">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M4 20h16"/></svg>
     Baixar o app
   </a>
-  <div class="meta">APK Android · 4,2 MB · v3.3</div>
+  <div class="meta">APK Android · 4,2 MB · v3.4</div>
 
   <div class="how">
     <h2>Como instalar</h2>
@@ -99,6 +100,7 @@
       <li>Se pedir, permita "instalar de fontes desconhecidas".</li>
       <li>Abra o PedeAí. O teste dura 7 dias neste aparelho.</li>
       <li>Vários aparelhos no mesmo bar? Instale em todos e use <b>Ajustes → Sincronizar aparelhos</b>: um cria a sala e mostra um <b>QR</b>; os outros escaneiam e escolhem o papel (caixa, garçom ou cozinha). Pode conectar quantos quiser.</li>
+      <li>Quando sair uma versão nova, o próprio app avisa — é só tocar em <b>Atualizar</b>.</li>
     </ol>
   </div>
 

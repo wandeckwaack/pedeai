@@ -1,7 +1,7 @@
 /* PedeAí — service worker.
    index.html: network-first (uma versão nova do app aparece na hora; cache só é
    usado se estiver offline). Demais arquivos: cache-first.  */
-var CACHE = "pedeai-v3-3";
+var CACHE = "pedeai-v3-4";
 var ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg", "./icon-maskable.svg"];
 
 self.addEventListener("install", function (e) {

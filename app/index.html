@@ -612,7 +612,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   async function authRestore() { try { var j = await authApi("/restore"); if (!j.blob) return; var saved = JSON.parse(j.blob); if (saved && saved.setup !== undefined && (!state.cloudAuthAt || !j.updatedAt || j.updatedAt > state.cloudAuthAt)) { state = saved; state.cloudAuthAt = j.updatedAt || new Date().toISOString(); migrate(); persist(false); toast("Dados restaurados da sua conta"); } } catch (e) {} }
   function authBackupSoon() { if (!authReady || !authToken) return; clearTimeout(authBackupTimer); authBackupTimer = setTimeout(function () { authApi("/backup", "POST", { blob: JSON.stringify(state) }).then(function (j) { if (j && j.updatedAt) { state.cloudAuthAt = j.updatedAt; try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} } }).catch(function () {}); }, 250); }
   function authAfterLogin() { authReady = true; authRestore().then(function () { licInit().then(function () { renderAll(); syncStart(); wakeLockMaybe(); updBeat(); }); }); }
-  function biometricPlugin() { return authPlugin("BiometricAuth"); }
+  function biometricPlugin() { return authPlugin("BiometricAuth") || authPlugin("BiometricAuthNative"); }
   async function appUnlock() {
     var b = biometricPlugin(); if (!b || appLockBusy) return;
     appLockBusy = true;

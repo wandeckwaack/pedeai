@@ -517,7 +517,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.2";
+  var KEY = "pedeai.v2", VERSION = "4.3";
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- licença / período de teste (15 dias) ----------
@@ -3053,7 +3053,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   // volta { latest, url, notice }. Se houver versão mais nova, o uso fica bloqueado
   // até a instalação. O id é aleatório e não identifica ninguém — só serve pra
   // o Wandeck ver, no painel dele, quantos aparelhos estão usando o app.
-  var IIDKEY = "pedeai.iid", BEATKEY = "pedeai.beat";
+  var IIDKEY = "pedeai.iid", BEATKEY = "pedeai.beat." + VERSION;
   var UPD_THROTTLE = 3 * 3600 * 1000;      // checa no máx a cada 3h (+ ao abrir, ao voltar, ao pegar internet)
   var updState = null;                     // { latest, url, notice } — só é setado quando HÁ versão nova
   var updAutoOpened = false, updSnoozeUntil = 0;
@@ -3099,7 +3099,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     try { window.open(u, "_blank"); } catch (e) { try { location.href = u; } catch (e2) {} }
   }
   function updGateActive() {
-    return !!updState && flow !== "wizard" && flow !== "tutorial";
+    return !!updState;
   }
   function renderUpdateGate() {
     appEl.innerHTML =
@@ -3146,7 +3146,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   }
 
   authInit().then(function (ok) {
-    if (!ok) { licInit().then(function () { renderAll(); }); return; }
+    if (!ok) { licInit().then(function () { updBeat(); renderAll(); }); return; }
     authRestore().then(function () { licInit().then(function () { renderAll(); syncStart(); wakeLockMaybe(); updBeat(); }, function () { renderAll(); syncStart(); updBeat(); }); });
   });
 })();

@@ -517,7 +517,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.3";
+  var KEY = "pedeai.v2", VERSION = "4.4";
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- licença / período de teste (15 dias) ----------
@@ -620,7 +620,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   // ---------- conta PedeAí (Google + restauração) ----------
   var AUTH_API = "https://painel.deckcorp.com.br/api/pedeai";
   var AUTH_GOOGLE_WEB_CLIENT = "831429163814-7dntb44dunnh4cn88l06h8v767td2vae.apps.googleusercontent.com";
-  var authToken = "", authUser = null, authReady = false, authBackupTimer = null;
+  var authToken = "", authUser = null, authReady = false, authBackupTimer = null, appAdminToken = "";
   var appLocked = false, appLockBusy = false, appWasBackgrounded = false;
   function authPlugin(name) { try { return window.Capacitor && Capacitor.Plugins && Capacitor.Plugins[name]; } catch (e) { return null; } }
   async function authStoreToken(token) { var s = authPlugin("SecureStorage"); try { if (s && s.set) return await s.set("pedeai.auth.token", token); } catch (e) {} try { localStorage.setItem("pedeai.auth.token", token); } catch (e) {} }
@@ -672,6 +672,25 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     try { localStorage.removeItem("pedeai.auth.token"); } catch (e) {}
     authToken = ""; authUser = null; authReady = false; appLocked = false; syncStop();
     flow = "welcome"; renderAll(); toast("Conta desconectada; seus dados continuam salvos");
+  }
+
+  async function appAdminApi(path, method, body) {
+    var h = appAdminToken ? { "Content-Type": "application/json", "Authorization": "Bearer " + appAdminToken } : { "Content-Type": "application/json" };
+    var r = await fetch(AUTH_API + path, { method: method || "GET", headers: h, body: body === undefined ? undefined : JSON.stringify(body) });
+    var j = await r.json().catch(function () { return {}; }); if (!r.ok) throw Error(j.error || "falha administrativa"); return j;
+  }
+  function renderAdminLogin(error) {
+    appEl.innerHTML = '<div class="ob ob-red"><div class="awning"></div><div class="ob-pad"><div class="ob-top"></div><div class="ob-mid">' + mark(50) + '<h2 class="anton" style="font-size:32px;margin-top:16px">Acesso administrativo</h2><p class="ob-tag">Consulte contas, vencimentos e sincronização.</p><label class="field"><span>Usuário</span><input id="appadminuser" autocomplete="username" value="adm"></label><label class="field"><span>Senha</span><input id="appadminpass" type="password" autocomplete="current-password"></label>' + (error ? '<p class="ob-tag" style="color:#ffb3c1">' + esc(error) + '</p>' : '') + '</div><div class="ob-actions"><button class="btn bone block xl slab" id="appadmingo">Entrar</button><button class="btn ghost block" id="appadminback">Voltar</button></div></div></div>';
+    document.getElementById("appadmingo").onclick = async function () { var b = document.getElementById("appadmingo"); b.disabled = true; try { var j = await appAdminApi("/app-admin/login", "POST", { username: document.getElementById("appadminuser").value, password: document.getElementById("appadminpass").value }); appAdminToken = j.token; renderAdminPanel(); } catch (e) { renderAdminLogin(e.message); } };
+    document.getElementById("appadminback").onclick = function () { renderWelcome(); };
+  }
+  async function renderAdminPanel() {
+    var users = []; appEl.innerHTML = '<div class="ob ob-red"><div class="awning"></div><div class="ob-pad"><div class="ob-top"></div><div class="ob-mid">' + mark(42) + '<h2 class="anton" style="font-size:30px">Administração</h2><input id="appadminsearch" class="field" placeholder="Pesquisar e-mail, nome ou telefone"><div id="appadminmsg" class="ob-tag">Carregando contas…</div><div id="appadminrows" style="text-align:left;max-height:1100px;overflow:auto"></div></div><div class="ob-actions"><button class="btn ghost block" id="appadminrefresh">Atualizar</button><button class="btn ghost block" id="appadminlogout">Sair do administrador</button></div></div></div>';
+    function fmt(x) { return x ? new Date(x).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "sem vencimento"; }
+    function renderRows() { var term = (document.getElementById("appadminsearch").value || "").toLowerCase().trim(); var out = users.filter(function (u) { return !term || [u.email, u.name, u.phone].some(function (v) { return String(v || "").toLowerCase().indexOf(term) >= 0; }); }).map(function (u) { return '<div style="padding:12px 0;border-bottom:1px solid rgba(255,255,255,.2)"><b>' + esc(u.email) + '</b><br><span class="credit">' + esc(u.name || "") + ' · ' + esc(u.phone || "sem telefone") + '<br>Acesso: ' + esc(u.access_status || "pending") + ' · vence: ' + fmt(u.access_expires_at) + '</span><br><button class="btn ghost" data-aa="renew" data-id="' + u.id + '">Renovar 15 dias</button> <button class="btn ghost" data-aa="block" data-id="' + u.id + '">Bloquear</button> <button class="btn ghost" data-aa="pending" data-id="' + u.id + '">Pendente</button></div>'; }).join("") || '<span class="credit">Nenhuma conta encontrada.</span>'; document.getElementById("appadminrows").innerHTML = out; document.querySelectorAll("[data-aa]").forEach(function (b) { b.onclick = adminAction; }); document.getElementById("appadminmsg").textContent = users.length + " conta(s) cadastrada(s)"; }
+    async function load() { try { users = (await appAdminApi("/app-admin/users")).users || []; renderRows(); } catch (e) { appAdminToken = ""; renderAdminLogin(e.message); } }
+    async function adminAction(e) { var b = e.currentTarget, u = users.find(function (x) { return String(x.id) === b.dataset.id; }); if (!u) return; var a = b.dataset.aa, expires = a === "renew" ? new Date(Date.now() + 15 * DAY_MS).toISOString() : "", status = a === "block" ? "suspended" : a === "pending" ? "pending" : "active"; b.disabled = true; try { await appAdminApi("/app-admin/user/" + u.id + "/access", "POST", { plan: u.plan || "trial", accessStatus: status, expiresAt: expires }); await load(); } catch (e2) { document.getElementById("appadminmsg").textContent = e2.message; b.disabled = false; } }
+    document.getElementById("appadminsearch").oninput = renderRows; document.getElementById("appadminrefresh").onclick = load; document.getElementById("appadminlogout").onclick = async function () { try { await appAdminApi("/app-admin/logout", "POST", {}); } catch (e) {} appAdminToken = ""; renderWelcome(); }; load();
   }
 
   function renderLock(mode) {
@@ -1629,6 +1648,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
             '<button class="btn bone block xl slab" id="start">Bora começar</button>' +
             '<button class="btn ghost block" id="demo" style="border-color:rgba(255,255,255,.4);color:#fff">Ver demonstração</button>' +
             '<button class="btn ghost block" id="accountin" style="border-color:rgba(255,255,255,.4);color:#fff">Entrar na minha conta</button>' +
+            '<button class="btn ghost block plain" id="adminin" style="color:#fff;opacity:.82;font-size:12px;min-height:36px">Acesso administrativo</button>' +
             '<button class="btn ghost block plain" id="joink" style="color:#fff;opacity:.9;font-size:13px;min-height:40px">Conectar a um bar (garçom, caixa ou cozinha)</button>' +
             '<div class="credit" style="margin-top:6px;color:#fff">Desenvolvido por ' + deckMark + '</div>' +
           '</div>' +
@@ -1637,6 +1657,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     document.getElementById("start").onclick = startTutorial;
     document.getElementById("demo").onclick = loadDemo;
     document.getElementById("accountin").onclick = function () { renderAuthGate("choose"); };
+    document.getElementById("adminin").onclick = function () { renderAdminLogin(); };
     document.getElementById("joink").onclick = function () { syncJoinSheet(); };
   }
 

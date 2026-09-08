@@ -193,6 +193,11 @@
   .splash-mark { animation: stampIn .5s cubic-bezier(.2,1.4,.4,1) both; transform-origin: left center; }
   .ob-tag { font-size: 17px; font-weight: 600; margin-top: 18px; max-width: 24ch; opacity: .92; }
   .credit { display: flex; align-items: center; justify-content: center; gap: 7px; font-size: 11px; font-weight: 600; opacity: .8; }
+  .splash-screen .ob-pad { width: 100%; }
+  .splash-screen .ob-mid { padding-top: 4vh; padding-bottom: 3vh; }
+  .splash-screen .wordmark .l1, .splash-screen .wordmark .l2 { font-size: clamp(52px, 16vw, 68px); }
+  .splash-screen .ob-tag { font-size: 18px; }
+  @media (max-height: 720px) { .splash-screen .ob-pad { padding-top: calc(14px + var(--safe-t)); padding-bottom: calc(14px + var(--safe-b)); } .splash-screen .ob-mid { padding-top: 0; padding-bottom: 0; } .splash-screen .ob-tag { font-size: 15px; margin-top: 10px; } .splash-screen .ob-actions { gap: 7px; } .splash-screen .btn { min-height: 46px; } }
 
   .slide-ic { width: 92px; height: 92px; margin-bottom: 20px; color: var(--red); }
   .slide h2 { font-family: "Anton", sans-serif; text-transform: uppercase; font-size: 34px; line-height: .95; }
@@ -517,7 +522,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.4";
+  var KEY = "pedeai.v2", VERSION = "4.5";
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- licença / período de teste (15 dias) ----------
@@ -680,7 +685,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     var j = await r.json().catch(function () { return {}; }); if (!r.ok) throw Error(j.error || "falha administrativa"); return j;
   }
   function renderAdminLogin(error) {
-    appEl.innerHTML = '<div class="ob ob-red"><div class="awning"></div><div class="ob-pad"><div class="ob-top"></div><div class="ob-mid">' + mark(50) + '<h2 class="anton" style="font-size:32px;margin-top:16px">Acesso administrativo</h2><p class="ob-tag">Consulte contas, vencimentos e sincronização.</p><label class="field"><span>Usuário</span><input id="appadminuser" autocomplete="username" value="adm"></label><label class="field"><span>Senha</span><input id="appadminpass" type="password" autocomplete="current-password"></label>' + (error ? '<p class="ob-tag" style="color:#ffb3c1">' + esc(error) + '</p>' : '') + '</div><div class="ob-actions"><button class="btn bone block xl slab" id="appadmingo">Entrar</button><button class="btn ghost block" id="appadminback">Voltar</button></div></div></div>';
+    appEl.innerHTML = '<div class="ob ob-red"><div class="awning"></div><div class="ob-pad"><div class="ob-top"></div><div class="ob-mid">' + mark(50) + '<h2 class="anton" style="font-size:32px;margin-top:16px">Acesso administrativo</h2><p class="ob-tag">Consulte contas, vencimentos e sincronização.</p><label class="field"><span>E-mail administrativo</span><input id="appadminuser" type="email" autocomplete="username" value="adm@deckcorp.com.br"></label><label class="field"><span>Senha</span><input id="appadminpass" type="password" autocomplete="current-password"></label>' + (error ? '<p class="ob-tag" style="color:#ffb3c1">' + esc(error) + '</p>' : '') + '</div><div class="ob-actions"><button class="btn bone block xl slab" id="appadmingo">Entrar</button><button class="btn ghost block" id="appadminback">Voltar</button></div></div></div>';
     document.getElementById("appadmingo").onclick = async function () { var b = document.getElementById("appadmingo"); b.disabled = true; try { var j = await appAdminApi("/app-admin/login", "POST", { username: document.getElementById("appadminuser").value, password: document.getElementById("appadminpass").value }); appAdminToken = j.token; renderAdminPanel(); } catch (e) { renderAdminLogin(e.message); } };
     document.getElementById("appadminback").onclick = function () { renderWelcome(); };
   }
@@ -1635,12 +1640,12 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   // ---------- onboarding ----------
   function renderWelcome() {
     appEl.innerHTML =
-      '<div class="ob ob-red">' +
+      '<div class="ob ob-red splash-screen">' +
         '<div class="awning"></div>' +
         '<div class="ob-pad">' +
           '<div class="ob-top"></div>' +
           '<div class="ob-mid">' +
-            '<div class="splash-mark" style="display:flex;align-items:center;gap:14px;margin-bottom:4px">' + mark(50) + '</div>' +
+            '<div id="adminsecret" class="splash-mark" style="display:flex;align-items:center;gap:14px;margin-bottom:4px">' + mark(50) + '</div>' +
             '<div class="wordmark splash-mark"><span class="l1">Pede</span><span class="l2">A&Iacute;<span class="bang">!</span></span></div>' +
             '<p class="ob-tag">A comanda do bar no celular. Anota, soma e fecha a conta. Sem papel, sem calculadora, sem internet.</p>' +
           '</div>' +
@@ -1648,7 +1653,6 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
             '<button class="btn bone block xl slab" id="start">Bora começar</button>' +
             '<button class="btn ghost block" id="demo" style="border-color:rgba(255,255,255,.4);color:#fff">Ver demonstração</button>' +
             '<button class="btn ghost block" id="accountin" style="border-color:rgba(255,255,255,.4);color:#fff">Entrar na minha conta</button>' +
-            '<button class="btn ghost block plain" id="adminin" style="color:#fff;opacity:.82;font-size:12px;min-height:36px">Acesso administrativo</button>' +
             '<button class="btn ghost block plain" id="joink" style="color:#fff;opacity:.9;font-size:13px;min-height:40px">Conectar a um bar (garçom, caixa ou cozinha)</button>' +
             '<div class="credit" style="margin-top:6px;color:#fff">Desenvolvido por ' + deckMark + '</div>' +
           '</div>' +
@@ -1657,7 +1661,8 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     document.getElementById("start").onclick = startTutorial;
     document.getElementById("demo").onclick = loadDemo;
     document.getElementById("accountin").onclick = function () { renderAuthGate("choose"); };
-    document.getElementById("adminin").onclick = function () { renderAdminLogin(); };
+    var secretTaps = 0, secretTimer = null;
+    document.getElementById("adminsecret").onclick = function () { secretTaps++; clearTimeout(secretTimer); secretTimer = setTimeout(function () { secretTaps = 0; }, 1800); if (secretTaps >= 5) { secretTaps = 0; renderAdminLogin(); } };
     document.getElementById("joink").onclick = function () { syncJoinSheet(); };
   }
 

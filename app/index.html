@@ -594,7 +594,10 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     // A licença da conta acompanha o e-mail e vale em qualquer aparelho.
     // Colaboradores pareados usam a licença do responsável pela sala.
     if (typeof syncPaired === "function" && syncPaired() && state.sync && state.sync.role && state.sync.role !== "full") return "unlocked";
-    if (authUser && authUser.access) return authUser.access.active ? "unlocked" : "expired";
+    if (authUser && authUser.access) {
+      if (authUser.access.active) return "unlocked";
+      return authUser.access.status === "pending" ? "pending" : "expired";
+    }
     if (!lic) return "trial";
     if (licenseVerified) return "unlocked";
     if (licDeviceId !== "web" && lic.deviceId && lic.deviceId !== licDeviceId) return "tamper";
@@ -652,6 +655,19 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   async function authEmailRegister() { var values = { authname: ((document.getElementById("authname") || {}).value || ""), authphone: ((document.getElementById("authphone") || {}).value || ""), authemail: ((document.getElementById("authemail") || {}).value || ""), authpass: ((document.getElementById("authpass") || {}).value || "") }; if (values.authpass.length < 8) return authKeepForm("register", "A senha precisa ter pelo menos 8 caracteres.", values); if (!values.authname.trim()) return authKeepForm("register", "Informe seu nome.", values); if (!values.authphone.trim()) return authKeepForm("register", "Informe seu telefone com DDD.", values); if (!values.authemail.trim()) return authKeepForm("register", "Informe seu e-mail.", values); try { var j = await authApi("/auth/register", "POST", { name: values.authname, phone: values.authphone, email: values.authemail, password: values.authpass }); authToken = j.token; authUser = j.user; await authStoreToken(authToken); renderAuthGate("code"); } catch (e) { authKeepForm("register", e.message || "não foi possível criar a conta", values); } }
   async function authSendCode() { try { await authApi("/auth/send-code", "POST", {}); renderAuthGate("code"); } catch (e) { renderAuthGate(authUser && authUser.emailVerified ? "choose" : "code", e.message || "não foi possível enviar o código"); } }
   async function authVerifyCode() { var v = (document.getElementById("authcode") || {}).value || ""; try { await authApi("/auth/verify-code", "POST", { code: v }); authAfterLogin(); } catch (e) { renderAuthGate("code", e.message || "código inválido"); } }
+  async function authRedeemAccess() {
+    var el = document.getElementById("accesscode"), code = el ? el.value : "";
+    try { var j = await authApi("/auth/redeem-access", "POST", { code: code }); authUser = j.user; licInit().then(function () { renderAll(); toast("Acesso liberado"); }); }
+    catch (e) { var msg = document.getElementById("accesserr"); if (msg) msg.textContent = e.message || "código inválido"; }
+  }
+  async function authLogout() {
+    if (syncPaired() && state.sync.role !== "full") { toast("Para sair, use Sair da sala"); return; }
+    try { await authApi("/auth/logout", "POST", {}); } catch (e) {}
+    var s = authPlugin("SecureStorage"); try { if (s && s.remove) await s.remove({ key: "pedeai.auth.token" }); } catch (e) {}
+    try { localStorage.removeItem("pedeai.auth.token"); } catch (e) {}
+    authToken = ""; authUser = null; authReady = false; appLocked = false; syncStop();
+    flow = "welcome"; renderAll(); toast("Conta desconectada; seus dados continuam salvos");
+  }
 
   function renderLock(mode) {
     appEl.innerHTML =
@@ -659,21 +675,28 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
         '<div class="ob-top"></div>' +
         '<div class="ob-mid">' + mark(50) +
           '<h2 class="anton" style="font-size:32px;margin-top:16px;line-height:1">' +
-          (mode === "tamper" ? "Licença de outro aparelho" : "Teste encerrado") + '</h2>' +
+          (mode === "tamper" ? "Licença de outro aparelho" : mode === "pending" ? "Acesso pendente" : "Acesso expirado") + '</h2>' +
           '<p class="ob-tag">' + (mode === "tamper"
             ? "Esta liberação é de outro aparelho. Fale com quem te passou o app."
-            : "Os " + TRIAL_DAYS + " dias de teste acabaram. Pra continuar, peça ao responsável um código de licença para o ID deste aparelho. Seus dados continuam salvos aqui.") + '</p>' +
-          '<label class="field" style="margin-top:22px"><span style="color:#fff">Código de licença</span>' +
+            : mode === "pending" ? "Sua conta está cadastrada, mas ainda precisa de um código de acesso de 8 dígitos enviado pelo administrador."
+            : "O acesso desta conta expirou. Solicite uma nova liberação ao administrador.") + '</p>' +
+          (mode === "pending" ? '<label class="field" style="margin-top:22px"><span style="color:#fff">Código de acesso</span><input id="accesscode" inputmode="numeric" maxlength="8" autocomplete="one-time-code" placeholder="00000000" style="background:rgba(0,0,0,.22);border-color:rgba(255,255,255,.45);color:#fff"></label><div id="accesserr" style="color:#ffe4de;font-weight:700;font-size:13px;min-height:18px"></div>' : '') +
+          (mode !== "pending" ? '<label class="field" style="margin-top:22px"><span style="color:#fff">Código de licença</span>' +
           '<input id="lkp" type="password" autocomplete="off" placeholder="••••••••" ' +
           'style="background:rgba(0,0,0,.22);border-color:rgba(255,255,255,.45);color:#fff"></label>' +
-          '<div id="lkerr" style="color:#ffe4de;font-weight:700;font-size:13px;min-height:18px"></div>' +
+          '<div id="lkerr" style="color:#ffe4de;font-weight:700;font-size:13px;min-height:18px"></div>' : '') +
         '</div>' +
         '<div class="ob-actions">' +
-          '<button class="btn bone block xl slab" id="lkgo">Liberar</button>' +
+          (mode === "pending" ? '<button class="btn bone block xl slab" id="accessgo">Liberar acesso</button>' : '<button class="btn bone block xl slab" id="lkgo">Liberar</button>') +
           '<div class="credit" style="margin-top:12px;color:#fff">ID do aparelho: ' + licShortId() + '</div>' +
           '<div class="credit" style="color:#fff">Desenvolvido por ' + deckMark + '</div>' +
         '</div>' +
       '</div></div>';
+    if (mode === "pending") {
+      document.getElementById("accessgo").onclick = authRedeemAccess;
+      document.getElementById("accesscode").addEventListener("keydown", function (e) { if (e.key === "Enter") authRedeemAccess(); });
+      return;
+    }
     var go = document.getElementById("lkgo");
     go.onclick = function () {
       licTry(document.getElementById("lkp").value).then(function (ok) {
@@ -1479,6 +1502,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     if (appLocked) return renderAppLock();
     if (!authReady && flow !== "welcome" && !isDemo()) return renderAuthGate("choose");
     var ls = licState();
+    if (ls === "pending") return renderLock("pending");
     if (ls === "expired") return renderLock("expired");
     if (ls === "tamper") return renderLock("tamper");
     if (updGateActive()) return renderUpdateGate();
@@ -1595,6 +1619,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
           '<div class="ob-actions">' +
             '<button class="btn bone block xl slab" id="start">Bora começar</button>' +
             '<button class="btn ghost block" id="demo" style="border-color:rgba(255,255,255,.4);color:#fff">Ver demonstração</button>' +
+            '<button class="btn ghost block" id="accountin" style="border-color:rgba(255,255,255,.4);color:#fff">Entrar na minha conta</button>' +
             '<button class="btn ghost block plain" id="joink" style="color:#fff;opacity:.9;font-size:13px;min-height:40px">Conectar a um bar (garçom, caixa ou cozinha)</button>' +
             '<div class="credit" style="margin-top:6px;color:#fff">Desenvolvido por ' + deckMark + '</div>' +
           '</div>' +
@@ -1602,6 +1627,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       '</div>';
     document.getElementById("start").onclick = startTutorial;
     document.getElementById("demo").onclick = loadDemo;
+    document.getElementById("accountin").onclick = function () { renderAuthGate("choose"); };
     document.getElementById("joink").onclick = function () { syncJoinSheet(); };
   }
 
@@ -2477,6 +2503,17 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   // ---- config ----
   function renderConfig(v) {
     v.innerHTML = '<h2 class="screen-title">Ajustes</h2>';
+
+    if (authReady && authUser) {
+      var ac = document.createElement("div"); ac.className = "cfg-sec";
+      var access = authUser.access || {};
+      ac.innerHTML = '<h4>Minha conta</h4><div class="cfg-row">E-mail<span class="right muted">' + esc(authUser.email) + '</span></div>' +
+        '<div class="cfg-row">Acesso<span class="right muted">' + esc(access.status === "active" ? ((access.plan || "").toUpperCase() + " · " + (access.expiresAt ? new Date(access.expiresAt).toLocaleDateString("pt-BR") : "sem vencimento")) : "pendente") + '</span></div>';
+      if (!syncPaired() || state.sync.role === "full") {
+        var out = document.createElement("button"); out.className = "cfg-row danger"; out.innerHTML = ic("logout", 17) + " Desconectar conta (manter dados)"; out.onclick = function () { confirmDialog("Desconectar esta conta sem apagar os dados deste aparelho?", "Desconectar", authLogout); }; ac.appendChild(out);
+      }
+      v.appendChild(ac);
+    }
 
     var sA = document.createElement("div"); sA.className = "cfg-sec"; sA.innerHTML = '<h4>Aparência</h4>';
     var trow = document.createElement("div"); trow.className = "cfg-row"; trow.style.display = "block";

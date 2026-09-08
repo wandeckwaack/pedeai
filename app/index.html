@@ -517,7 +517,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.1";
+  var KEY = "pedeai.v2", VERSION = "4.2";
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- licença / período de teste (15 dias) ----------
@@ -595,7 +595,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     // Colaboradores pareados usam a licença do responsável pela sala.
     if (typeof syncPaired === "function" && syncPaired() && state.sync && state.sync.role && state.sync.role !== "full") return "unlocked";
     if (authUser && authUser.access) {
-      if (authUser.access.active) return "unlocked";
+      if (authUser.access.active) return authUser.access.status === "trial" ? "trial" : "unlocked";
       if (authUser.access.status === "pending") return "pending";
       if (authUser.access.status === "suspended") return "blocked";
       return "expired";
@@ -685,7 +685,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
             ? "Esta liberação é de outro aparelho. Fale com quem te passou o app."
             : mode === "pending" ? "Sua conta está cadastrada, mas ainda precisa de um código de acesso de 8 dígitos enviado pelo administrador."
             : mode === "blocked" ? "O administrador bloqueou o acesso desta conta. Entre em contato para solicitar a liberação."
-            : "O acesso desta conta expirou. Solicite uma nova liberação ao administrador.") + '</p>' +
+            : (authUser && authUser.access && authUser.access.status === "trial" ? "Seu período gratuito de 15 dias terminou. Solicite um código de acesso ao administrador." : "O acesso desta conta expirou. Solicite uma nova liberação ao administrador.")) + '</p>' +
           (mode === "pending" ? '<label class="field" style="margin-top:22px"><span style="color:#fff">Código de acesso</span><input id="accesscode" inputmode="numeric" maxlength="8" autocomplete="one-time-code" placeholder="00000000" style="background:rgba(0,0,0,.22);border-color:rgba(255,255,255,.45);color:#fff"></label><div id="accesserr" style="color:#ffe4de;font-weight:700;font-size:13px;min-height:18px"></div>' : '') +
           (mode !== "pending" && !(authUser && authUser.access) ? '<label class="field" style="margin-top:22px"><span style="color:#fff">Código de licença</span>' +
           '<input id="lkp" type="password" autocomplete="off" placeholder="••••••••" ' +
@@ -2516,8 +2516,9 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     if (authReady && authUser) {
       var ac = document.createElement("div"); ac.className = "cfg-sec";
       var access = authUser.access || {};
+      var accessLabel = access.status === "trial" && access.expiresAt ? "Teste grátis até " + new Date(access.expiresAt).toLocaleString("pt-BR") : access.status === "active" ? ((access.plan || "").toUpperCase() + " · " + (access.expiresAt ? "vence em " + new Date(access.expiresAt).toLocaleString("pt-BR") : "sem vencimento")) : access.status === "suspended" ? "bloqueado" : access.status === "expired" ? "expirado" : "pendente";
       ac.innerHTML = '<h4>Minha conta</h4><div class="cfg-row">E-mail<span class="right muted">' + esc(authUser.email) + '</span></div>' +
-        '<div class="cfg-row">Acesso<span class="right muted">' + esc(access.status === "active" ? ((access.plan || "").toUpperCase() + " · " + (access.expiresAt ? new Date(access.expiresAt).toLocaleDateString("pt-BR") : "sem vencimento")) : "pendente") + '</span></div>';
+        '<div class="cfg-row">Acesso<span class="right muted">' + esc(accessLabel) + '</span></div>';
       if (!syncPaired() || state.sync.role === "full") {
         var out = document.createElement("button"); out.className = "cfg-row danger"; out.innerHTML = ic("logout", 17) + " Desconectar conta (manter dados)"; out.onclick = function () { confirmDialog("Desconectar esta conta sem apagar os dados deste aparelho?", "Desconectar", authLogout); }; ac.appendChild(out);
       }
@@ -2687,7 +2688,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     v.appendChild(ssec);
 
     var ls = licState();
-    var licTxt = ls === "unlocked" ? "Liberado (licença ativa)" : ls === "trial" ? "Teste · " + licDaysLeft() + (licDaysLeft() > 1 ? " dias restantes" : " dia restante") : ls === "expired" ? "Teste encerrado" : "Licença de outro aparelho";
+    var licTxt = ls === "unlocked" ? "Liberado (licença ativa)" : ls === "trial" ? "Teste grátis até " + (authUser && authUser.access && authUser.access.expiresAt ? new Date(authUser.access.expiresAt).toLocaleString("pt-BR") : licDaysLeft() + (licDaysLeft() > 1 ? " dias restantes" : " dia restante")) : ls === "expired" ? "Teste encerrado" : "Licença de outro aparelho";
     var s7 = document.createElement("div"); s7.className = "cfg-sec"; s7.innerHTML = '<h4>Licença</h4>' +
       '<div class="cfg-row">Situação<span class="right muted">' + licTxt + '</span></div>' +
       '<div class="cfg-row">ID deste aparelho<span class="right muted mono" style="font-size:12px">' + licShortId() + '</span></div>';

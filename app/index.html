@@ -596,7 +596,9 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     if (typeof syncPaired === "function" && syncPaired() && state.sync && state.sync.role && state.sync.role !== "full") return "unlocked";
     if (authUser && authUser.access) {
       if (authUser.access.active) return "unlocked";
-      return authUser.access.status === "pending" ? "pending" : "expired";
+      if (authUser.access.status === "pending") return "pending";
+      if (authUser.access.status === "suspended") return "blocked";
+      return "expired";
     }
     if (!lic) return "trial";
     if (licenseVerified) return "unlocked";
@@ -625,7 +627,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   async function authInit() { authToken = await authLoadToken(); if (!authToken) return false; try { var j = await authApi("/auth/me"); authUser = j.user; authReady = true; return true; } catch (e) { authToken = ""; return false; } }
   async function authRestore() { try { var j = await authApi("/restore"); if (!j.blob) return; var saved = JSON.parse(j.blob); if (saved && saved.setup !== undefined && (!state.cloudAuthAt || !j.updatedAt || j.updatedAt > state.cloudAuthAt)) { state = saved; state.cloudAuthAt = j.updatedAt || new Date().toISOString(); migrate(); persist(false); toast("Dados restaurados da sua conta"); } } catch (e) {} }
   function authBackupSoon() { if (!authReady || !authToken) return; clearTimeout(authBackupTimer); authBackupTimer = setTimeout(function () { authApi("/backup", "POST", { blob: JSON.stringify(state) }).then(function (j) { if (j && j.updatedAt) { state.cloudAuthAt = j.updatedAt; try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} } }).catch(function () {}); }, 250); }
-  function authAfterLogin() { authReady = true; authRestore().then(function () { licInit().then(function () { renderAll(); syncStart(); wakeLockMaybe(); updBeat(); }); }); }
+  function authAfterLogin() { authReady = true; authRestore().then(function () { licInit().then(function () { if (state.setup) flow = "app"; renderAll(); syncStart(); wakeLockMaybe(); updBeat(); }); }); }
   function biometricPlugin() { return authPlugin("BiometricAuth") || authPlugin("BiometricAuthNative"); }
   async function appUnlock() {
     var b = biometricPlugin(); if (!b || appLockBusy) return;
@@ -675,19 +677,20 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
         '<div class="ob-top"></div>' +
         '<div class="ob-mid">' + mark(50) +
           '<h2 class="anton" style="font-size:32px;margin-top:16px;line-height:1">' +
-          (mode === "tamper" ? "Licença de outro aparelho" : mode === "pending" ? "Acesso pendente" : "Acesso expirado") + '</h2>' +
+          (mode === "tamper" ? "Licença de outro aparelho" : mode === "pending" ? "Acesso pendente" : mode === "blocked" ? "Acesso bloqueado" : "Acesso expirado") + '</h2>' +
           '<p class="ob-tag">' + (mode === "tamper"
             ? "Esta liberação é de outro aparelho. Fale com quem te passou o app."
             : mode === "pending" ? "Sua conta está cadastrada, mas ainda precisa de um código de acesso de 8 dígitos enviado pelo administrador."
+            : mode === "blocked" ? "O administrador bloqueou o acesso desta conta. Entre em contato para solicitar a liberação."
             : "O acesso desta conta expirou. Solicite uma nova liberação ao administrador.") + '</p>' +
           (mode === "pending" ? '<label class="field" style="margin-top:22px"><span style="color:#fff">Código de acesso</span><input id="accesscode" inputmode="numeric" maxlength="8" autocomplete="one-time-code" placeholder="00000000" style="background:rgba(0,0,0,.22);border-color:rgba(255,255,255,.45);color:#fff"></label><div id="accesserr" style="color:#ffe4de;font-weight:700;font-size:13px;min-height:18px"></div>' : '') +
-          (mode !== "pending" ? '<label class="field" style="margin-top:22px"><span style="color:#fff">Código de licença</span>' +
+          (mode !== "pending" && !(authUser && authUser.access) ? '<label class="field" style="margin-top:22px"><span style="color:#fff">Código de licença</span>' +
           '<input id="lkp" type="password" autocomplete="off" placeholder="••••••••" ' +
           'style="background:rgba(0,0,0,.22);border-color:rgba(255,255,255,.45);color:#fff"></label>' +
           '<div id="lkerr" style="color:#ffe4de;font-weight:700;font-size:13px;min-height:18px"></div>' : '') +
         '</div>' +
         '<div class="ob-actions">' +
-          (mode === "pending" ? '<button class="btn bone block xl slab" id="accessgo">Liberar acesso</button>' : '<button class="btn bone block xl slab" id="lkgo">Liberar</button>') +
+          (mode === "pending" ? '<button class="btn bone block xl slab" id="accessgo">Liberar acesso</button>' : (authUser && authUser.access ? '<div class="credit" style="margin-top:12px;color:#fff">Aguarde uma nova liberação do administrador.</div>' : '<button class="btn bone block xl slab" id="lkgo">Liberar</button>')) +
           '<div class="credit" style="margin-top:12px;color:#fff">ID do aparelho: ' + licShortId() + '</div>' +
           '<div class="credit" style="color:#fff">Desenvolvido por ' + deckMark + '</div>' +
         '</div>' +
@@ -1503,6 +1506,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     if (!authReady && flow !== "welcome" && !isDemo()) return renderAuthGate("choose");
     var ls = licState();
     if (ls === "pending") return renderLock("pending");
+    if (ls === "blocked") return renderLock("blocked");
     if (ls === "expired") return renderLock("expired");
     if (ls === "tamper") return renderLock("tamper");
     if (updGateActive()) return renderUpdateGate();

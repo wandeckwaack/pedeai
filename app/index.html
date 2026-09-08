@@ -594,7 +594,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     // A licença da conta acompanha o e-mail e vale em qualquer aparelho.
     // Colaboradores pareados usam a licença do responsável pela sala.
     if (typeof syncPaired === "function" && syncPaired() && state.sync && state.sync.role && state.sync.role !== "full") return "unlocked";
-    if (authUser && authUser.access && authUser.access.active) return "unlocked";
+    if (authUser && authUser.access) return authUser.access.active ? "unlocked" : "expired";
     if (!lic) return "trial";
     if (licenseVerified) return "unlocked";
     if (licDeviceId !== "web" && lic.deviceId && lic.deviceId !== licDeviceId) return "tamper";

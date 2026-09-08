@@ -3075,6 +3075,13 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   function updApply(res) {
     if (!res) return;
     if (res.latest && verCmp(res.latest, VERSION) > 0) {
+      // Na web a atualização é automática: o service worker busca o HTML
+      // novo e recarregamos a página. Somente o APK precisa abrir o download.
+      if (!window.Capacitor) {
+        try { if (navigator.serviceWorker) navigator.serviceWorker.getRegistration().then(function (r) { if (r) r.update(); }).catch(function () {}); } catch (e) {}
+        setTimeout(function () { location.href = location.pathname + "?update=" + encodeURIComponent(res.latest) + "&t=" + Date.now(); }, 250);
+        return;
+      }
       var isNew = !updState || updState.latest !== res.latest;
       updState = { latest: res.latest, url: res.url || "https://pedeai.deckcorp.com.br/pedeai-latest.apk", notice: res.notice || "" };
       if (isNew) updSnoozeUntil = 0;
@@ -3094,6 +3101,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     } catch (e) {}
   }
   function updOpen() {
+    if (!window.Capacitor) { location.href = location.pathname + "?update=" + Date.now(); return; }
     var u = (updState && updState.url) || "https://pedeai.deckcorp.com.br/pedeai-latest.apk";
     try { if (window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.Browser) { Capacitor.Plugins.Browser.open({ url: u }); return; } } catch (e) {}
     try { window.open(u, "_blank"); } catch (e) { try { location.href = u; } catch (e2) {} }
@@ -3136,7 +3144,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   // Só no modo PWA (site). Dentro do APK (Capacitor) os arquivos já vêm no pacote —
   // um SW aqui só arriscaria servir versão velha depois de atualizar o app.
   if (!window.Capacitor && "serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
-    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js?v=email-only-6").catch(function () {}); });
+    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js?v=auto-7").catch(function () {}); });
   } else if (window.Capacitor && "serviceWorker" in navigator) {
     // limpa qualquer SW/cache de versões antigas do APK
     try {

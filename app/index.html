@@ -1443,7 +1443,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   function renderAll() {
     closeSheet(true);
     applyTheme();
-    if (!authReady) return renderAuthGate("choose");
+    if (!authReady && flow !== "welcome" && !isDemo()) return renderAuthGate("choose");
     var ls = licState();
     if (ls === "expired") return renderLock("expired");
     if (ls === "tamper") return renderLock("tamper");

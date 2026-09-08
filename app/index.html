@@ -517,7 +517,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.0";
+  var KEY = "pedeai.v2", VERSION = "4.1";
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- licença / período de teste (15 dias) ----------
@@ -600,7 +600,10 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       if (authUser.access.status === "suspended") return "blocked";
       return "expired";
     }
-    if (!lic) return "trial";
+    // Fora da demonstração, uma conta sem sessão/autorização nunca recebe
+    // teste automático nem licença local. A liberação precisa vir do backend.
+    if (!authUser || !authUser.access) return "pending";
+    if (!lic) return "pending";
     if (licenseVerified) return "unlocked";
     if (licDeviceId !== "web" && lic.deviceId && lic.deviceId !== licDeviceId) return "tamper";
     return licDaysLeft() > 0 ? "trial" : "expired";
@@ -1504,13 +1507,15 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     applyTheme();
     if (appLocked) return renderAppLock();
     if (!authReady && flow !== "welcome" && !isDemo()) return renderAuthGate("choose");
+    if (flow === "welcome") return renderWelcome();
+    if (isDemo() && flow === "tutorial") return renderTutorial();
+    if (isDemo() && flow === "app") return renderApp();
     var ls = licState();
     if (ls === "pending") return renderLock("pending");
     if (ls === "blocked") return renderLock("blocked");
     if (ls === "expired") return renderLock("expired");
     if (ls === "tamper") return renderLock("tamper");
     if (updGateActive()) return renderUpdateGate();
-    if (flow === "welcome") return renderWelcome();
     if (flow === "tutorial") return renderTutorial();
     if (flow === "wizard") return renderWizard();
     return renderApp();

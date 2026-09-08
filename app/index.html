@@ -108,6 +108,7 @@
   .updbar { background: var(--ink); color: var(--bone); font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 7px 12px; }
   .updbar button { background: var(--yellow); color: var(--yellow-ink); border: none; font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; padding: 5px 12px; border-radius: 8px; }
   .demobar { background: #2563EB; color: #fff; font-weight: 800; font-size: 10.5px; text-align: center; padding: 5px 8px; text-transform: uppercase; letter-spacing: .05em; }
+  .demobar button { margin-left: 10px; border: 1px solid rgba(255,255,255,.75); border-radius: 999px; background: transparent; color: #fff; font: inherit; font-size: 10px; padding: 3px 9px; cursor: pointer; }
   .notifhost { display: flex; flex-direction: column; gap: 6px; padding: 0 12px; }
   .notifhost:empty { display: none; }
   .notif { margin-top: 8px; background: var(--yellow); color: var(--yellow-ink); border: 2px solid var(--yellow-ink); border-radius: 12px; padding: 10px 12px; font-weight: 800; font-size: 13px; text-align: left; display: flex; align-items: center; gap: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.28); animation: slideDown .28s cubic-bezier(.2,1.2,.3,1) both; }
@@ -579,7 +580,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       } catch (e) { afterId(); }
     });
   }
-  function licDaysLeft() { return Math.max(0, Math.ceil(TRIAL_DAYS - (Date.now() - lic.trialStart) / DAY_MS)); }
+  function licDaysLeft() { if (!lic || !lic.trialStart) return TRIAL_DAYS; return Math.max(0, Math.ceil(TRIAL_DAYS - (Date.now() - lic.trialStart) / DAY_MS)); }
   function licState() {
     if (!lic) return "trial";
     if (licenseVerified) return "unlocked";
@@ -1368,7 +1369,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       '<div class="cg-step">Passo ' + (demoGuide.step + 1) + ' de ' + total + '</div>' +
       '<p>' + s.text + '</p>' +
       '<div class="cg-row">' +
-        '<button class="cg-skip" id="cgskip">Pular guia</button>' +
+        '<button class="cg-skip" id="cgskip">' + (demoGuide.step === 0 ? "Pular demonstração" : "Pular guia") + '</button>' +
         (manual ? '<button class="cg-next" id="cgnext">' + (s.cta || "Próximo") + '</button>' : '<span class="cg-hint">faça a ação acima ↑</span>') +
         (s.cta2 ? '<button class="cg-skip" id="cgnext2">' + s.cta2 + '</button>' : '') +
       '</div></div>';
@@ -1379,7 +1380,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       top = Math.max(70, Math.min(top, window.innerHeight - b.offsetHeight - 20));
       b.style.top = top + "px";
     }
-    var sk = c.querySelector("#cgskip"); if (sk) sk.onclick = coachSkip;
+    var sk = c.querySelector("#cgskip"); if (sk) sk.onclick = demoGuide.step === 0 ? exitDemo : coachSkip;
     var nx = c.querySelector("#cgnext");
     if (nx) nx.onclick = function () {
       haptic(6);
@@ -1516,15 +1517,18 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   function tryExit() {
     if (scrim) { closeSheet(); return; }
     if (isDemo()) {
-      confirmDialog("Sair da demonstração? Os dados de teste deste modo serão apagados deste aparelho.", "Sair da demo", function () {
-        demoGuide = null;
-        try { localStorage.removeItem(KEY); } catch (e) {}
-        state = blankState(); migrate(); flow = "welcome"; current = "mesas"; openTableId = null; renderAll();
-      }, true);
+      confirmDialog("Sair da demonstração? Os dados de teste deste modo serão apagados deste aparelho.", "Sair da demonstração", exitDemo, true);
       return;
     }
     if (syncPaired()) { leaveSheet(); return; }
     confirmDialog("Sair do PedeAí? Tudo já fica salvo neste aparelho.", "Sair", doExit);
+  }
+  function exitDemo() {
+    demoGuide = null;
+    coachRemove();
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    state = blankState(); migrate(); flow = "welcome"; current = "mesas"; openTableId = null; renderAll();
+    toast("Demonstração encerrada");
   }
   window.addEventListener("popstate", function () { armBack(); goBack(); });
   armBack();
@@ -1532,10 +1536,6 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     var A = capApp();
     if (A && A.addListener) {
       try { A.addListener("backButton", function (ev) {
-        // se não há pra onde voltar dentro do app, minimiza (não trava, não fecha à toa)
-        if (flow === "app" && !scrim && !openTableId && !syncPaired() && current === firstTab() && !isDemo()) {
-          try { A.minimizeApp(); return; } catch (e) {}
-        }
         goBack();
       }); } catch (e) {}
     }
@@ -1790,7 +1790,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
             '<span><span class="nm">' + esc((st ? st.name : "").split(" ")[0] || (sr && sr !== "full" ? syncRoleLabel(sr) : "—")) + '</span><br><span class="rl">' + (sr && sr !== "full" ? "Sala " + esc(state.sync.room) : (ROLE_LABEL[role] || "")) + '</span></span></button>') +
       '</div><div class="awning thin"></div>' +
       (licState() === "trial" ? '<div class="trialbar">Versão de teste · ' + licDaysLeft() + (licDaysLeft() > 1 ? ' dias restantes' : ' dia restante') + '</div>' : '') +
-      (demoGuide ? '<div class="demobar">Modo demonstração' + (demoGuide.done ? '' : ' · guia passo a passo') + '</div>' : '') +
+      (demoGuide ? '<div class="demobar">Modo demonstração' + (demoGuide.done ? '' : ' · guia passo a passo') + '<button id="demoexit" type="button">Sair da demonstração</button></div>' : '') +
       updBanner() +
       '<div id="notifhost" class="notifhost"></div>' +
       '</div>' +
@@ -1814,6 +1814,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     updWire();
     notifPaint();
     renderCoach();
+    var de = document.getElementById("demoexit"); if (de) de.onclick = exitDemo;
   }
   function renderView() {
     var v = document.getElementById("view"); if (!v) return;
@@ -3055,7 +3056,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   // Só no modo PWA (site). Dentro do APK (Capacitor) os arquivos já vêm no pacote —
   // um SW aqui só arriscaria servir versão velha depois de atualizar o app.
   if (!window.Capacitor && "serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
-    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js?v=email-only-4").catch(function () {}); });
+    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js?v=email-only-5").catch(function () {}); });
   } else if (window.Capacitor && "serviceWorker" in navigator) {
     // limpa qualquer SW/cache de versões antigas do APK
     try {
@@ -3065,7 +3066,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   }
 
   authInit().then(function (ok) {
-    if (!ok) { renderAll(); return; }
+    if (!ok) { licInit().then(function () { renderAll(); }); return; }
     authRestore().then(function () { licInit().then(function () { renderAll(); syncStart(); wakeLockMaybe(); updBeat(); }, function () { renderAll(); syncStart(); updBeat(); }); });
   });
 })();

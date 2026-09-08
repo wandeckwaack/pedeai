@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>PedeAí</title>
 <meta name="description" content="PedeAí — comanda digital pra bar e restaurante: mesas, cozinha e caixa. Funciona sem internet, dados só no aparelho." />
-<meta name="theme-color" content="#121010" />
+<meta name="theme-color" content="#050807" />
 <meta name="color-scheme" content="dark light" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -16,32 +16,31 @@
 <link rel="apple-touch-icon" href="icon-maskable.svg" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Figtree:wght@400;500;600;700;800;900&family=Spline+Sans+Mono:wght@500;600;700&display=swap" />
 
 <style>
   :root {
-    --red: #e5372a;
-    --red-deep: #c22a1e;
-    --red-soft: #7a2019;
-    --red-ink: #fff5f2;
-    --ink: #121010;
-    --ink-2: #1c1815;
-    --ink-3: #29231e;
-    --ink-4: #37302a;
-    --line: #3c332c;
-    --bone: #f3ede2;
-    --bone-dim: #a89e8d;
-    --bone-faint: #6d6355;
-    --paper: #f5ecdc;
-    --paper-2: #efe4cf;
-    --paper-line: #d8c9ab;
-    --paper-ink: #241c11;
-    --paper-faint: #8a7a5c;
-    --yellow: #f5c518;
-    --yellow-ink: #2c1e00;
-    --green: #43bd6b;
-    --green-ink: #052312;
+    --red: #ff1744;
+    --red-deep: #d90032;
+    --red-soft: #7d0b25;
+    --red-ink: #fff7f8;
+    --ink: #050807;
+    --ink-2: #09120d;
+    --ink-3: #102018;
+    --ink-4: #173022;
+    --line: #255034;
+    --bone: #edffe8;
+    --bone-dim: #9ac49a;
+    --bone-faint: #5d8a65;
+    --paper: #f1ffe9;
+    --paper-2: #dff8d2;
+    --paper-line: #a8d49b;
+    --paper-ink: #102115;
+    --paper-faint: #4f7c58;
+    --yellow: #b7ff00;
+    --yellow-ink: #102000;
+    --green: #39ff14;
+    --green-ink: #031b08;
     --disc-bg: rgba(0,0,0,.55);
     --card-shadow: 0 1px 2px rgba(0,0,0,.3);
     --pop-shadow: 0 18px 44px rgba(0,0,0,.5);
@@ -52,14 +51,14 @@
   }
   /* ---- light theme (forced) ---- */
   :root[data-theme="light"] {
-    --ink: #f4efe6;
-    --ink-2: #fffdf8;
-    --ink-3: #efe7d8;
-    --ink-4: #e5dac6;
-    --line: #ddd0ba;
-    --bone: #241c14;
-    --bone-dim: #6f6455;
-    --bone-faint: #9a8e7c;
+    --ink: #efffe9;
+    --ink-2: #fbfff8;
+    --ink-3: #e1f7d9;
+    --ink-4: #c9ebc0;
+    --line: #a5d39a;
+    --bone: #102115;
+    --bone-dim: #47734f;
+    --bone-faint: #719b76;
     --disc-bg: rgba(30,22,14,.42);
     --card-shadow: 0 1px 2px rgba(120,100,70,.18);
     --pop-shadow: 0 18px 44px rgba(90,70,45,.28);
@@ -68,14 +67,14 @@
   /* ---- light theme (auto / system) ---- */
   @media (prefers-color-scheme: light) {
     :root:not([data-theme]) {
-      --ink: #f4efe6;
-      --ink-2: #fffdf8;
-      --ink-3: #efe7d8;
-      --ink-4: #e5dac6;
-      --line: #ddd0ba;
-      --bone: #241c14;
-      --bone-dim: #6f6455;
-      --bone-faint: #9a8e7c;
+      --ink: #efffe9;
+      --ink-2: #fbfff8;
+      --ink-3: #e1f7d9;
+      --ink-4: #c9ebc0;
+      --line: #a5d39a;
+      --bone: #102115;
+      --bone-dim: #47734f;
+      --bone-faint: #719b76;
       --disc-bg: rgba(30,22,14,.42);
       --card-shadow: 0 1px 2px rgba(120,100,70,.18);
       --pop-shadow: 0 18px 44px rgba(90,70,45,.28);
@@ -87,7 +86,9 @@
   [hidden] { display: none !important; }
   html, body { height: 100%; }
   body {
-    margin: 0; background: var(--ink); color: var(--bone);
+    margin: 0; background-color: var(--ink); color: var(--bone);
+    background-image: linear-gradient(rgba(57,255,20,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(57,255,20,.025) 1px, transparent 1px), radial-gradient(circle at 50% -10%, rgba(57,255,20,.1), transparent 38%);
+    background-size: 28px 28px, 28px 28px, 100% 100%;
     font-family: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     line-height: 1.4; -webkit-font-smoothing: antialiased; overscroll-behavior-y: none;
     transition: background .25s ease, color .25s ease;
@@ -103,7 +104,7 @@
 
   #app { max-width: 620px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; position: relative; }
 
-  .awning { height: 10px; flex: none; background: repeating-linear-gradient(90deg, var(--red) 0 22px, #f3ede2 22px 44px); }
+  .awning { height: 10px; flex: none; background: repeating-linear-gradient(90deg, var(--red) 0 22px, var(--green) 22px 44px); }
   .awning.thin { height: 6px; opacity: .9; }
   .trialbar { background: var(--yellow); color: var(--yellow-ink); font-weight: 800; font-size: 10.5px; text-align: center; padding: 5px 8px; text-transform: uppercase; letter-spacing: .05em; }
   .updbar { background: var(--ink); color: var(--bone); font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 7px 12px; }
@@ -129,7 +130,7 @@
   .receipt-prev { background: #fff; color: #111; border: 1px solid var(--line); border-radius: 10px; padding: 14px; font-family: "Courier New", ui-monospace, monospace; font-size: 12px; line-height: 1.35; white-space: pre; overflow-x: auto; }
   @media print { body > *:not(iframe) { display: none !important; } }
   .syncdot { width: 9px; height: 9px; border-radius: 50%; flex: none; margin-left: 2px; background: var(--bone-faint); }
-  .syncdot.s-online { background: var(--green); box-shadow: 0 0 0 3px rgba(67,189,107,.22); }
+  .syncdot.s-online { background: var(--green); box-shadow: 0 0 0 3px rgba(57,255,20,.22); }
   .syncdot.s-offline { background: var(--yellow); }
   .syncdot.s-badpin, .syncdot.s-noroom { background: var(--red); }
   .paircode { display: flex; align-items: center; justify-content: space-between; border: 2px solid var(--line); border-radius: 12px; padding: 12px 16px; margin-bottom: 10px; background: var(--ink); }
@@ -163,7 +164,7 @@
   .btn.bone { background: var(--bone); border-color: var(--bone); color: var(--ink); }
   .btn.ghost { background: transparent; border-color: var(--line); }
   .btn.ghost.plain { border-color: transparent; }
-  .btn.danger { color: #f0897b; border-color: var(--red-soft); background: transparent; }
+  .btn.danger { color: #ff6b87; border-color: var(--red-soft); background: transparent; }
   .btn.xl { min-height: 62px; font-size: 17px; }
   .btn .ic { width: 21px; height: 21px; }
   .btn:disabled { opacity: .4; }
@@ -187,7 +188,7 @@
   .wordmark { font-family: "Anton", sans-serif; text-transform: uppercase; line-height: .96; letter-spacing: -.005em; white-space: nowrap; }
   .wordmark .l1 { font-size: clamp(46px, 15.5vw, 60px); }
   .wordmark .l2 { font-size: clamp(46px, 15.5vw, 60px); margin-left: .16em; }
-  .wordmark .l2 .bang { color: #f5c518; margin-left: .02em; }
+  .wordmark .l2 .bang { color: var(--yellow); margin-left: .02em; }
   .splash-mark { animation: stampIn .5s cubic-bezier(.2,1.4,.4,1) both; transform-origin: left center; }
   .ob-tag { font-size: 17px; font-weight: 600; margin-top: 18px; max-width: 24ch; opacity: .92; }
   .credit { display: flex; align-items: center; justify-content: center; gap: 7px; font-size: 11px; font-weight: 600; opacity: .8; }
@@ -609,12 +610,14 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   async function authRestore() { try { var j = await authApi("/restore"); if (j.blob && (!state.setup || !state.tables.length)) { var saved = JSON.parse(j.blob); if (saved && saved.setup !== undefined) { state = saved; migrate(); persist(false); toast("Dados restaurados da sua conta"); } } } catch (e) {} }
   function authBackupSoon() { if (!authReady || !authToken) return; clearTimeout(authBackupTimer); authBackupTimer = setTimeout(function () { authApi("/backup", "POST", { blob: JSON.stringify(state) }).catch(function () {}); }, 1800); }
   function authAfterLogin() { authReady = true; authRestore().then(function () { licInit().then(function () { renderAll(); syncStart(); wakeLockMaybe(); updBeat(); }); }); }
-  function authGoogleWebMount() { if (authPlugin("GoogleSignIn")) return; var wrap = document.getElementById("authgooglewrap"); if (!wrap) return; var tries = 0; function mount() { if (!window.google || !google.accounts || !google.accounts.id) { if (tries++ < 30) setTimeout(mount, 250); return; } google.accounts.id.initialize({ client_id: AUTH_GOOGLE_WEB_CLIENT, callback: function (response) { authGoogleToken(response.credential).catch(function (e) { renderAuthGate("choose", e.message || "login recusado"); }); } }); var old = document.getElementById("authgoogle"); if (old) old.style.display = "none"; google.accounts.id.renderButton(wrap, { theme: "filled_black", size: "large", text: "signin_with", shape: "pill", width: 320, locale: "pt-BR" }); } }
-  function renderAuthGate(mode, error) { var form = mode === "code" ? '<label class="field"><span>Código enviado para ' + esc(authUser && authUser.email) + '</span><input id="authcode" inputmode="numeric" maxlength="6" placeholder="000000"></label><button class="btn red block xl slab" id="authverify">Verificar e continuar</button><button class="btn ghost block" id="authresend">Reenviar código</button>' : mode === "loginEmail" || mode === "register" ? (mode === "register" ? '<label class="field"><span>Seu nome</span><input id="authname" autocomplete="name" placeholder="Como podemos chamar você?"></label>' : '') + '<label class="field"><span>E-mail</span><input id="authemail" type="email" autocomplete="email" placeholder="voce@exemplo.com"></label><label class="field"><span>Senha (mínimo 8 caracteres)</span><input id="authpass" type="password" autocomplete="' + (mode === "register" ? 'new-password' : 'current-password') + '" placeholder="••••••••"></label><button class="btn red block xl slab" id="authemailgo">' + (mode === "register" ? 'Criar conta' : 'Entrar com e-mail') + '</button><button class="btn ghost block" id="authback">Voltar</button>' : '<div id="authgooglewrap"><button class="btn red block xl slab" id="authgoogle">Entrar com Google</button></div><button class="btn bone block" id="authemailin">Entrar com e-mail</button><button class="btn ghost block" id="authregister">Criar conta com e-mail</button>'; appEl.innerHTML = '<div class="ob"><div class="awning"></div><div class="ob-pad"><div class="ob-top"></div><div class="ob-mid">' + mark(56) + '<h1 class="anton">Entrar no PedeAí</h1><p class="ob-tag">Salve seus dados na sua conta e restaure tudo mesmo depois de trocar ou reinstalar o aparelho.</p>' + form + (error ? '<div class="ob-tag" style="color:#ffd0c8;margin-top:12px">' + esc(error) + '</div>' : '') + '</div><div class="credit">PedeAí · conta protegida por Google ou e-mail</div></div></div>'; if (mode === "code") { document.getElementById("authverify").onclick = authVerifyCode; document.getElementById("authresend").onclick = authSendCode; } else if (mode === "loginEmail" || mode === "register") { document.getElementById("authemailgo").onclick = mode === "register" ? authEmailRegister : authEmailLogin; document.getElementById("authback").onclick = function () { renderAuthGate("choose"); }; } else { document.getElementById("authgoogle").onclick = authGoogleLogin; document.getElementById("authemailin").onclick = function () { renderAuthGate("loginEmail"); }; document.getElementById("authregister").onclick = function () { renderAuthGate("register"); }; authGoogleWebMount(); } }
+  function authGoogleWebMount() { authEmailOnly("choose"); }
+  function authEmailOnly(mode) { var g = document.getElementById("authgooglewrap"); if (g) g.remove(); if (!document.getElementById("authphone")) { var e = document.getElementById("authemail"); if (e) e.insertAdjacentHTML("beforebegin", '<label class="field"><span>Telefone com DDD</span><input id="authphone" type="tel" autocomplete="tel" placeholder="(00) 00000-0000"></label>'); } var p = document.getElementById("authpass"); if (p && !document.getElementById("authpassview")) { var b = document.createElement("button"); b.id = "authpassview"; b.type = "button"; b.textContent = "👁"; b.className = "btn ghost"; b.style.cssText = "margin-top:8px;min-height:38px;width:auto;padding:4px 14px"; b.onclick = function () { p.type = p.type === "password" ? "text" : "password"; b.textContent = p.type === "password" ? "👁" : "🙈"; }; p.parentNode.appendChild(b); var f = document.createElement("button"); f.id = "authforgot"; f.type = "button"; f.textContent = "Esqueci minha senha"; f.className = "btn ghost"; f.style.cssText = "margin-top:8px;min-height:38px"; f.onclick = authForgotFlow; p.parentNode.appendChild(f); } }
+  async function authForgotFlow() { var identifier = prompt("Digite seu e-mail ou telefone:"); if (!identifier) return; try { await authApi("/auth/forgot", "POST", { identifier: identifier }); var code = prompt("Digite o código de 6 dígitos enviado por e-mail:"); var password = prompt("Digite a nova senha (mínimo 8 caracteres):"); if (!code || !password) return; await authApi("/auth/reset-password", "POST", { identifier: identifier, code: code, password: password }); renderAuthGate("loginEmail", "Senha redefinida. Entre com a nova senha."); } catch (e) { renderAuthGate("loginEmail", e.message || "não foi possível recuperar a senha"); } }
+  function renderAuthGate(mode, error) { var form = mode === "code" ? '<label class="field"><span>Código enviado para ' + esc(authUser && authUser.email) + '</span><input id="authcode" inputmode="numeric" maxlength="6" placeholder="000000"></label><button class="btn red block xl slab" id="authverify">Verificar e continuar</button><button class="btn ghost block" id="authresend">Reenviar código</button>' : mode === "loginEmail" || mode === "register" ? (mode === "register" ? '<label class="field"><span>Seu nome</span><input id="authname" autocomplete="name" placeholder="Como podemos chamar você?"></label>' : '') + '<label class="field"><span>E-mail</span><input id="authemail" type="email" autocomplete="email" placeholder="voce@exemplo.com"></label><label class="field"><span>Senha (mínimo 8 caracteres)</span><input id="authpass" type="password" autocomplete="' + (mode === "register" ? 'new-password' : 'current-password') + '" placeholder="••••••••"></label><button class="btn red block xl slab" id="authemailgo">' + (mode === "register" ? 'Criar conta' : 'Entrar com e-mail') + '</button><button class="btn ghost block" id="authback">Voltar</button>' : '<div id="authgooglewrap"><button class="btn red block xl slab" id="authgoogle">Entrar com Google</button></div><button class="btn bone block" id="authemailin">Entrar com e-mail</button><button class="btn ghost block" id="authregister">Criar conta com e-mail</button>'; appEl.innerHTML = '<div class="ob"><div class="awning"></div><div class="ob-pad"><div class="ob-top"></div><div class="ob-mid">' + mark(56) + '<h1 class="anton">Entrar no PedeAí</h1><p class="ob-tag">Salve seus dados na sua conta e restaure tudo mesmo depois de trocar ou reinstalar o aparelho.</p>' + form + (error ? '<div class="ob-tag" style="color:#ffb3c1;margin-top:12px">' + esc(error) + '</div>' : '') + '</div><div class="credit">PedeAí · conta protegida por Google ou e-mail</div></div></div>'; if (mode === "code") { document.getElementById("authverify").onclick = authVerifyCode; document.getElementById("authresend").onclick = authSendCode; } else if (mode === "loginEmail" || mode === "register") { document.getElementById("authemailgo").onclick = mode === "register" ? authEmailRegister : authEmailLogin; document.getElementById("authback").onclick = function () { renderAuthGate("choose"); }; } else { document.getElementById("authgoogle").onclick = authGoogleLogin; document.getElementById("authemailin").onclick = function () { renderAuthGate("loginEmail"); }; document.getElementById("authregister").onclick = function () { renderAuthGate("register"); }; authGoogleWebMount(); } }
   async function authGoogleToken(idToken) { var j = await fetch(AUTH_API + "/auth/google", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: idToken }) }).then(function (r) { return r.json().then(function (x) { if (!r.ok) throw Error(x.error || "login recusado"); return x; }); }); authToken = j.token; authUser = j.user; await authStoreToken(authToken); await authSendCode(); }
   async function authGoogleLogin() { var b = document.getElementById("authgoogle"); if (b) { b.disabled = true; b.textContent = "Abrindo Google…"; } try { var g = authPlugin("GoogleSignIn"); if (!g) { if (!window.google || !google.accounts || !google.accounts.id) throw Error("o Google ainda está carregando — tente novamente"); google.accounts.id.initialize({ client_id: AUTH_GOOGLE_WEB_CLIENT, callback: function (response) { authGoogleToken(response.credential).catch(function (e) { renderAuthGate("choose", e.message || "login recusado"); }); } }); google.accounts.id.prompt(function (n) { if (n.isNotDisplayed() || n.isSkippedMoment()) renderAuthGate("choose", "o Google não abriu; tente novamente ou use e-mail"); }); return; } await g.initialize({ clientId: AUTH_GOOGLE_WEB_CLIENT }); var res = await g.signIn(); if (!res || !res.idToken) throw Error("Google não devolveu uma identidade"); await authGoogleToken(res.idToken); } catch (e) { var msg = e && e.code === "NO_CREDENTIAL_AVAILABLE" ? "Nenhuma conta Google está adicionada neste aparelho. Adicione uma conta em Configurações > Contas e tente novamente, ou use e-mail e senha." : (e.message || "não foi possível entrar"); renderAuthGate("choose", msg); } }
-  async function authEmailLogin() { try { var j = await authApi("/auth/login", "POST", { email: document.getElementById("authemail").value, password: document.getElementById("authpass").value }); authToken = j.token; authUser = j.user; await authStoreToken(authToken); if (j.needsVerification) renderAuthGate("code"); else authAfterLogin(); } catch (e) { renderAuthGate("loginEmail", e.message || "não foi possível entrar"); } }
-  async function authEmailRegister() { try { var j = await authApi("/auth/register", "POST", { name: document.getElementById("authname").value, email: document.getElementById("authemail").value, password: document.getElementById("authpass").value }); authToken = j.token; authUser = j.user; await authStoreToken(authToken); renderAuthGate("code"); } catch (e) { renderAuthGate("register", e.message || "não foi possível criar a conta"); } }
+  async function authEmailLogin() { try { var j = await authApi("/auth/login", "POST", { identifier: document.getElementById("authemail").value, password: document.getElementById("authpass").value }); authToken = j.token; authUser = j.user; await authStoreToken(authToken); renderAuthGate("code"); } catch (e) { renderAuthGate("loginEmail", e.message || "não foi possível entrar"); } }
+  async function authEmailRegister() { if (!document.getElementById("authphone")) { authEmailOnly("register"); return; } try { var j = await authApi("/auth/register", "POST", { name: document.getElementById("authname").value, phone: document.getElementById("authphone").value, email: document.getElementById("authemail").value, password: document.getElementById("authpass").value }); authToken = j.token; authUser = j.user; await authStoreToken(authToken); renderAuthGate("code"); } catch (e) { renderAuthGate("register", e.message || "não foi possível criar a conta"); authEmailOnly("register"); } }
   async function authSendCode() { try { await authApi("/auth/send-code", "POST", {}); renderAuthGate("code"); } catch (e) { renderAuthGate(authUser && authUser.emailVerified ? "choose" : "code", e.message || "não foi possível enviar o código"); } }
   async function authVerifyCode() { var v = (document.getElementById("authcode") || {}).value || ""; try { await authApi("/auth/verify-code", "POST", { code: v }); authAfterLogin(); } catch (e) { renderAuthGate("code", e.message || "código inválido"); } }
 
@@ -745,13 +748,13 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   // brand mark: chopp glass forming a "P"
   function mark(size, tile) {
     return '<svg viewBox="0 0 48 48" width="' + size + '" height="' + size + '">' +
-      (tile ? '<rect width="48" height="48" rx="12" fill="#e5372a"/>' : '') +
-      '<g stroke="#f5ecdc" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none">' +
-        '<path d="M11 15h15v22a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3z" fill="#f5c518"/>' +
+      (tile ? '<rect width="48" height="48" rx="12" fill="#ff1744"/>' : '') +
+      '<g stroke="#edffe8" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none">' +
+        '<path d="M11 15h15v22a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3z" fill="#b7ff00"/>' +
         '<path d="M26 17c7 0 10 3.5 10 7s-3.5 6.5-10 5" fill="none"/>' +
-        '<path d="M8 15c1.6-3 4-3 5.6 0 1.6-3 4-3 5.6 0 1.6-3 4-3 5.6 0 1.6-3 4-3 5.6 0" fill="#f5ecdc" stroke-width="2.4"/>' +
-        '<circle cx="16.5" cy="24" r="1.6" fill="#f5ecdc" stroke="none"/>' +
-        '<circle cx="20.5" cy="31" r="1.6" fill="#f5ecdc" stroke="none"/>' +
+        '<path d="M8 15c1.6-3 4-3 5.6 0 1.6-3 4-3 5.6 0 1.6-3 4-3 5.6 0 1.6-3 4-3 5.6 0" fill="#edffe8" stroke-width="2.4"/>' +
+        '<circle cx="16.5" cy="24" r="1.6" fill="#edffe8" stroke="none"/>' +
+        '<circle cx="20.5" cy="31" r="1.6" fill="#edffe8" stroke="none"/>' +
       '</g></svg>';
   }
   var deckMark = '<span style="display:inline-flex;align-items:center;gap:5px;font-weight:800;letter-spacing:-.3px">' +
@@ -1427,7 +1430,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     if (t === "auto") document.documentElement.removeAttribute("data-theme");
     else document.documentElement.setAttribute("data-theme", t);
     var mc = document.querySelector('meta[name="theme-color"]');
-    if (mc) mc.setAttribute("content", t === "light" ? "#f4efe6" : "#121010");
+    if (mc) mc.setAttribute("content", t === "light" ? "#efffe9" : "#050807");
   }
 
   // ---------- root ----------
@@ -1675,7 +1678,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   }
   function confetti() {
     if (RM) return;
-    var cols = ["#e5372a", "#f5c518", "#43bd6b", "#f3ede2"];
+    var cols = ["#ff1744", "#b7ff00", "#39ff14", "#edffe8"];
     for (var i = 0; i < 16; i++) {
       var p = document.createElement("i");
       p.style.cssText = "position:fixed;z-index:70;left:" + (8 + Math.random() * 84) + "%;top:-12px;width:9px;height:9px;background:" +
@@ -2598,7 +2601,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
           f.appendChild(ok);
         });
       }; ssec.appendChild(sc3);
-      var sc4 = document.createElement("button"); sc4.className = "cfg-row danger"; sc4.style.color = "#f0897b"; sc4.textContent = "Desconectar";
+      var sc4 = document.createElement("button"); sc4.className = "cfg-row danger"; sc4.style.color = "#ff6b87"; sc4.textContent = "Desconectar";
       sc4.onclick = syncDisconnect; ssec.appendChild(sc4);
     }
     v.appendChild(ssec);
@@ -2645,7 +2648,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       b.innerHTML = unlocked
         ? '<p class="muted" style="font-size:14px;margin-bottom:12px">Este aparelho está <b style="color:var(--green)">liberado</b>. Use o botão abaixo pra voltar ao modo de teste (15 dias) neste aparelho.</p>'
         : '<p class="muted">ID do aparelho: ' + esc(licShortId()) + '</p><label class="field"><span>Código de licença</span><input id="ap" type="password" autocomplete="off" placeholder="••••••••"></label>' +
-          '<div id="aperr" style="color:#f0897b;font-weight:700;font-size:13px;min-height:16px"></div>';
+          '<div id="aperr" style="color:#ff6b87;font-weight:700;font-size:13px;min-height:16px"></div>';
       if (!unlocked) setTimeout(function () { b.querySelector("#ap").focus(); }, 60);
     }, function (f) {
       if (unlocked) {

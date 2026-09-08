@@ -522,7 +522,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.5";
+  var KEY = "pedeai.v2", VERSION = "4.6";
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- licença / período de teste (15 dias) ----------
@@ -1646,7 +1646,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
           '<div class="ob-top"></div>' +
           '<div class="ob-mid">' +
             '<div id="adminsecret" class="splash-mark" style="display:flex;align-items:center;gap:14px;margin-bottom:4px">' + mark(50) + '</div>' +
-            '<div class="wordmark splash-mark"><span class="l1">Pede</span><span class="l2">A&Iacute;<span class="bang">!</span></span></div>' +
+            '<div id="adminsecretword" class="wordmark splash-mark"><span class="l1">Pede</span><span class="l2">A&Iacute;<span class="bang">!</span></span></div>' +
             '<p class="ob-tag">A comanda do bar no celular. Anota, soma e fecha a conta. Sem papel, sem calculadora, sem internet.</p>' +
           '</div>' +
           '<div class="ob-actions">' +
@@ -1661,8 +1661,10 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     document.getElementById("start").onclick = startTutorial;
     document.getElementById("demo").onclick = loadDemo;
     document.getElementById("accountin").onclick = function () { renderAuthGate("choose"); };
-    var secretTaps = 0, secretTimer = null;
-    document.getElementById("adminsecret").onclick = function () { secretTaps++; clearTimeout(secretTimer); secretTimer = setTimeout(function () { secretTaps = 0; }, 1800); if (secretTaps >= 5) { secretTaps = 0; renderAdminLogin(); } };
+    var secretTaps = 0, secretTimer = null, longTimer = null, adminOpened = false;
+    function openAdminSecret() { if (adminOpened) return; adminOpened = true; secretTaps = 0; renderAdminLogin(); }
+    function wireAdminSecret(el) { if (!el) return; el.onclick = function () { secretTaps++; clearTimeout(secretTimer); secretTimer = setTimeout(function () { secretTaps = 0; }, 1800); if (secretTaps >= 3) openAdminSecret(); }; el.addEventListener("pointerdown", function () { clearTimeout(longTimer); longTimer = setTimeout(openAdminSecret, 1200); }); ["pointerup", "pointercancel", "pointerleave"].forEach(function (ev) { el.addEventListener(ev, function () { clearTimeout(longTimer); }); }); }
+    wireAdminSecret(document.getElementById("adminsecret")); wireAdminSecret(document.getElementById("adminsecretword"));
     document.getElementById("joink").onclick = function () { syncJoinSheet(); };
   }
 

@@ -531,8 +531,8 @@
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.13.4";
-  var VERSION_CODE = 60;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
+  var KEY = "pedeai.v2", VERSION = "4.13.5";
+  var VERSION_CODE = 61;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- logger de erros (silencioso -> backend -> erros_pedeai.log) ----------
@@ -703,6 +703,20 @@
   function authPlugin(name) { try { return window.Capacitor && Capacitor.Plugins && Capacitor.Plugins[name]; } catch (e) { return null; } }
   async function authStoreToken(token) { var s = authPlugin("SecureStorage"); try { if (s && s.set) return await s.set("pedeai.auth.token", token); } catch (e) { reportError("storage", { message: "SecureStorage.set falhou: " + (e && e.message || e), stack: e && e.stack }); } try { localStorage.setItem("pedeai.auth.token", token); } catch (e) { reportError("storage", { message: "localStorage token falhou: " + (e && e.message || e), stack: e && e.stack }); } }
   async function authLoadToken() { var s = authPlugin("SecureStorage"); try { if (s && s.get) { var v = await s.get("pedeai.auth.token"); if (v) return String(v); } } catch (e) {} try { return localStorage.getItem("pedeai.auth.token") || ""; } catch (e) { return ""; } }
+  // Apaga só a credencial DESTE aparelho do armazenamento local (não mexe no servidor).
+  async function authForgetLocalToken() {
+    var s = authPlugin("SecureStorage");
+    try { if (s && s.remove) await s.remove({ key: "pedeai.auth.token" }); } catch (e) {}
+    try { localStorage.removeItem("pedeai.auth.token"); } catch (e) {}
+  }
+  // "Apagar e recomeçar": por segurança revoga TODAS as sessões da conta (todos os
+  // aparelhos) antes de zerar o app. Sem token não faz nada.
+  async function authRevokeAllSessions() {
+    try { if (authToken) await authApi("/auth/logout-all", "POST", {}); } catch (e) {}
+    await authForgetLocalToken();
+    authSessionUnavailable = false; try { clearTimeout(authSessionTimer); } catch (e) {}
+    authToken = ""; authUser = null; authReady = false; appLocked = false;
+  }
   function authHeaders() { return authToken ? { "Content-Type": "application/json", "Authorization": "Bearer " + authToken } : { "Content-Type": "application/json" }; }
   async function authApi(path, method, body) {
     return networkRequest(AUTH_API + path, { method: method || "GET", headers: authHeaders(), body: body === undefined ? undefined : JSON.stringify(body) }, 10000).promise;
@@ -803,23 +817,13 @@
       } else renderAuthGate("loginEmail", e.message || "Não foi possível confirmar a sessão. Entre novamente.");
     }
   }
-  function biometricPlugin() { return authPlugin("BiometricAuth") || authPlugin("BiometricAuthNative"); }
-  async function appUnlock() {
-    var b = biometricPlugin(); if (!b || appLockBusy) return;
-    appLockBusy = true;
-    try { await b.authenticate({ reason: "Desbloqueie o PedeAí para continuar", allowDeviceCredential: true, androidTitle: "PedeAí bloqueado", androidSubtitle: "Use digital, rosto ou PIN do aparelho" }); appLocked = false; renderAll(); }
-    catch (e) { appLocked = true; renderAll(); toast("Autenticação necessária para continuar"); }
-    finally { appLockBusy = false; }
-  }
-  async function appLockCheck() {
-    if (!authReady || isDemo() || appLockBusy || appLocked) return;
-    var b = biometricPlugin(); if (!b || !b.checkBiometry) return;
-    try { var info = await b.checkBiometry(); if (info && (info.isAvailable || info.deviceIsSecure)) { appLocked = true; renderAll(); await appUnlock(); } } catch (e) {}
-  }
-  function renderAppLock() {
-    appEl.innerHTML = '<div class="app-lock"><div class="lock-card">' + mark(58) + '<h1 class="anton" style="font-size:30px;margin:18px 0 10px">PedeAí bloqueado</h1><p class="ob-tag" style="color:#fff">Use a digital, o rosto ou o PIN do aparelho para continuar.</p><button class="btn bone block xl slab" id="unlockapp">Desbloquear</button></div></div>';
-    document.getElementById("unlockapp").onclick = appUnlock;
-  }
+  // Trava por biometria/PIN REMOVIDA: nunca mais bloquear ao voltar de 2º plano
+  // ou trocar de aba. O fluxo é imediato. (funções mantidas como no-op só pra não
+  // quebrar chamadas legadas.)
+  function biometricPlugin() { return null; }
+  function appUnlock() { appLocked = false; }
+  function appLockCheck() { appLocked = false; }
+  function renderAppLock() { }
   async function authForgotFlow() { var identifier = prompt("Digite seu e-mail ou telefone:") || authFlowId; if (!identifier) return; try { await authApi("/auth/forgot", "POST", { identifier: identifier }); var code = prompt("Digite o código de 6 dígitos enviado por e-mail:"); var password = prompt("Digite a nova senha (mínimo 8 caracteres):"); if (!code || !password) return; await authApi("/auth/reset-password", "POST", { identifier: identifier, code: code, password: password }); authFlowId = String(identifier).trim().toLowerCase(); renderAuthStep2(true, "", "Senha redefinida. Entre com a nova senha."); } catch (e) { renderAuthStep2(true, "", (e && e.message) || "não foi possível recuperar a senha"); } }
   // Compat: chamadas antigas de renderAuthGate agora caem no fluxo unificado.
   function renderAuthGate(mode, error) { if (mode === "code") return renderAuthCode(error); return renderWelcome(error); }
@@ -834,8 +838,7 @@
     if (storeLinked() && state.store.role !== "full") { toast("Para sair, use Sair da equipe"); return; }
     if (storeLinked()) storeUnlink();
     try { await authApi("/auth/logout", "POST", {}); } catch (e) {}
-    var s = authPlugin("SecureStorage"); try { if (s && s.remove) await s.remove({ key: "pedeai.auth.token" }); } catch (e) {}
-    try { localStorage.removeItem("pedeai.auth.token"); } catch (e) {}
+    await authForgetLocalToken();
     authSessionUnavailable = false; clearTimeout(authSessionTimer);
     authToken = ""; authUser = null; authReady = false; appLocked = false; syncResetRuntime();
     flow = "welcome"; renderAll(); toast("Conta desconectada; seus dados continuam salvos");
@@ -1060,7 +1063,7 @@
   // ---------- state ----------
   function blankState() {
     return { setup: false, setupOwn: false, version: VERSION, biz: { name: "", type: "bar", logo: null }, linkedCashier: true,
-      settings: { theme: "auto", haptics: true, sound: true, servicePct: 10, printer: { mode: "off", width: 58, showOnClose: false, autoBill: false, header: "" } },
+      settings: { theme: "auto", haptics: true, sound: true, servicePct: 10, otherService: { name: "", value: 0, on: false }, printer: { mode: "off", width: 58, showOnClose: false, autoBill: false, header: "" } },
       ui: { kitchenSeenAt: 0 },
       sync: { room: null, pin: null, role: "full", enabled: false, server: "", cfgAt: 0, tomb: {}, status: "off" },
       staff: [], activeStaffId: null, cats: ["Geral"], menu: [], tables: [], day: { date: todayStr(), sales: [] }, history: [] };
@@ -1075,6 +1078,8 @@
   function migrate() {
     if (!state.settings) state.settings = {};
     if (typeof state.settings.servicePct !== "number") state.settings.servicePct = 10;
+    if (!state.settings.otherService || typeof state.settings.otherService !== "object") state.settings.otherService = { name: "", value: 0, on: false };
+    if (typeof state.settings.otherService.value !== "number") state.settings.otherService.value = +state.settings.otherService.value || 0;
     if (typeof state.settings.haptics !== "boolean") state.settings.haptics = true;
     if (typeof state.settings.sound !== "boolean") state.settings.sound = true;
     if (!state.settings.printer) state.settings.printer = { mode: "off", width: 58, showOnClose: false, autoBill: false, header: "" };
@@ -1253,7 +1258,8 @@
     });
     return { biz: state.biz, staff: staff, cats: state.cats, menu: state.menu,
       linkedCashier: state.linkedCashier,
-      servicePct: state.settings.servicePct, serviceDefault: !!state.settings.serviceDefault };
+      servicePct: state.settings.servicePct, serviceDefault: !!state.settings.serviceDefault,
+      otherService: state.settings.otherService || { name: "", value: 0, on: false } };
   }
   function syncApplyCfg(c) {
     if (!c) return;
@@ -1272,6 +1278,7 @@
     if (typeof c.linkedCashier === "boolean") state.linkedCashier = c.linkedCashier;
     if (typeof c.servicePct === "number") state.settings.servicePct = c.servicePct;
     if (typeof c.serviceDefault === "boolean") state.settings.serviceDefault = c.serviceDefault;
+    if (c.otherService && typeof c.otherService === "object") state.settings.otherService = { name: String(c.otherService.name || ""), value: +c.otherService.value || 0, on: !!c.otherService.on };
     // aparelho de garçom/caixa/cozinha começa sem "quem sou" — mostra o papel; a pessoa pode escolher um nome pra atribuição
     if (!state.activeStaffId && state.staff[0] && (!storeLinked() || state.store.role === "full")) state.activeStaffId = state.staff[0].id;
   }
@@ -1959,8 +1966,17 @@
     });
   }
   function syncDisconnect() {
-    confirmDialog("Desconectar este aparelho do estabelecimento? Os dados que já estão aqui continuam salvos, e sua conta segue logada.", "Desconectar", function () {
-      storeUnlink(); renderAll();
+    confirmDialog("Desconectar este aparelho? A sessão DESTE dispositivo é revogada agora — os outros aparelhos da conta continuam ativos e sincronizando. Os dados já salvos aqui permanecem.", "Desconectar", function () {
+      // Cirúrgico: derruba SÓ o token deste aparelho. storeUnlink() tira o vínculo
+      // local; /auth/logout apaga só esta sessão no servidor (não as dos outros).
+      if (storeLinked()) storeUnlink();
+      authApi("/auth/logout", "POST", {}).catch(function () {});
+      authForgetLocalToken();
+      authSessionUnavailable = false; clearTimeout(authSessionTimer);
+      authToken = ""; authUser = null; authReady = false; appLocked = false;
+      syncResetRuntime();
+      flow = "welcome"; renderAll();
+      toast("Aparelho desconectado; os outros seguem ativos");
     }, true);
   }
   function loadDemo() {
@@ -1970,7 +1986,7 @@
     var c = { id: uid(), name: "Dona Márcia", role: "cozinha", pin: "" };
     var now = Date.now();
     state = { setup: true, version: VERSION, biz: { name: "Bar do Cacau", type: "bar", logo: null }, linkedCashier: true,
-      settings: { theme: "auto", haptics: true, sound: true, servicePct: 10 }, ui: { kitchenSeenAt: 0, demo: true },
+      settings: { theme: "auto", haptics: true, sound: true, servicePct: 10 }, ui: { kitchenSeenAt: 0, demo: true, demoStart: now, demoActs: 0 },
       // Demo = ambiente local/mock: estabelecimento NÃO vinculado, sync desligado.
       store: { id: null, name: "", role: "full", enabled: false, jwt: "", jwtExp: 0, cfgAt: 0, tomb: {}, _tombPending: {}, status: "off", events: [] },
       staff: [a, g, c], activeStaffId: a.id, cats: m.cats, menu: m.menu,
@@ -1992,6 +2008,47 @@
 
   // ---------- guia passo a passo do modo demonstração ----------
   var demoGuide = null;
+  // Modo demonstração = amostra pra conhecer antes de assinar, NÃO um plano grátis.
+  // Limite duplo: tempo de sessão OU volume de ações. Ao estourar, tela-cheia
+  // comercial (renderDemoEnd) sem como voltar a mexer.
+  var DEMO_MAX_MS = 20 * 60 * 1000;   // 20 min de teste por sessão
+  var DEMO_MAX_ACTS = 80;             // ~80 ações (lançar item, abrir mesa, fechar conta…)
+  function demoMinsLeft() {
+    if (!isDemo() || !state.ui || !state.ui.demoStart) return Math.round(DEMO_MAX_MS / 60000);
+    return Math.max(0, Math.ceil((DEMO_MAX_MS - (Date.now() - state.ui.demoStart)) / 60000));
+  }
+  function demoLimitHit() {
+    if (!isDemo() || !state.ui) return false;
+    var started = state.ui.demoStart || 0;
+    if (started && Date.now() - started > DEMO_MAX_MS) return true;
+    if ((state.ui.demoActs || 0) >= DEMO_MAX_ACTS) return true;
+    return false;
+  }
+  function demoTick(n) {
+    if (!isDemo() || !state.ui) return;
+    state.ui.demoActs = (state.ui.demoActs || 0) + (n || 1);
+    if (demoLimitHit()) renderAll();
+  }
+  function demoBarText() {
+    if (demoGuide && !demoGuide.done) return "Modo demonstração · guia passo a passo";
+    var left = demoMinsLeft();
+    return "Demonstração · " + (left > 0 ? left + " min pra testar" : "tempo esgotado") + " · assine pra usar de verdade";
+  }
+  function renderDemoEnd() {
+    coachRemove(); closeSheet(true);
+    var byTime = !!(state.ui && state.ui.demoStart && (Date.now() - state.ui.demoStart > DEMO_MAX_MS));
+    appEl.innerHTML = '<div class="ob ob-red"><div class="awning"></div><div class="ob-pad"><div class="ob-top"></div><div class="ob-mid">' + mark(50) +
+      '<h2 class="anton" style="font-size:32px;margin-top:16px">Fim da demonstração</h2>' +
+      '<p class="ob-tag">' + (byTime ? "Você testou o PedeAí por 20 minutos. " : "Você já explorou bastante o PedeAí. ") +
+      'O modo demonstração serve só pra conhecer o app antes de assinar — ele não funciona como plano gratuito.</p>' +
+      '<p class="ob-tag">Crie sua conta pra usar de verdade: dados na nuvem, vários aparelhos e sincronização entre garçom, cozinha e caixa.</p>' +
+      '</div><div class="ob-actions">' +
+      '<button class="btn bone block xl slab" id="deCreate">Criar minha conta grátis</button>' +
+      '<button class="btn ghost block" id="deRestart">Recomeçar a demonstração</button>' +
+      '</div></div></div>';
+    document.getElementById("deCreate").onclick = function () { exitDemo(); };
+    document.getElementById("deRestart").onclick = function () { loadDemo(); };
+  }
   var COACH_STEPS = [
     { place: "center", text: "Bem-vindo à <b>demonstração</b>. Os dados aqui são de mentira — mexa à vontade. Vou te mostrar o passo a passo de como usar.", cta: "Começar" },
     { sel: ".grid .tcard", place: "bottom", text: "Cada mesa tem a sua comanda. <b>Toque na Mesa 3</b> pra abrir.", adv: function () { return !!openTableId; } },
@@ -2110,7 +2167,7 @@
     closeSheet(true);
     applyTheme();
     if (forceUpdateGate) return renderForcedUpdate();   // bloqueio absoluto de versão obsoleta
-    if (appLocked) return renderAppLock();
+    if (isDemo() && demoLimitHit()) return renderDemoEnd();
     if (!authReady && flow !== "welcome" && !isDemo()) {
       // Dispositivo já configurado com sessão salva: NUNCA sai da comanda por falha
       // de rede/sessão. Opera com os dados locais; a conta revalida em 2º plano
@@ -2215,6 +2272,7 @@
 
   // ---------- live timers ----------
   setInterval(function () {
+    if (isDemo() && demoLimitHit()) { renderAll(); return; }
     if (scrim || flow !== "app") return;
     if (current === "cozinha" || (current === "mesas" && !openTableId)) renderView();
   }, 30000);
@@ -2571,7 +2629,7 @@
             '<span><span class="nm">' + esc((st ? st.name : "").split(" ")[0] || (sr && sr !== "full" ? syncRoleLabel(sr) : "—")) + '</span><br><span class="rl">' + (sr && sr !== "full" ? esc(state.store.name || "") : (ROLE_LABEL[role] || "")) + '</span></span></button>') +
       '</div><div class="awning thin"></div>' +
       (licState() === "trial" ? '<div class="trialbar">Versão de teste · ' + licDaysLeft() + (licDaysLeft() > 1 ? ' dias restantes' : ' dia restante') + '</div>' : '') +
-      (demoGuide ? '<div class="demobar">Modo demonstração' + (demoGuide.done ? '' : ' · guia passo a passo') + '<button id="demoexit" type="button">Sair da demonstração</button></div>' : '') +
+      (isDemo() ? '<div class="demobar">' + demoBarText() + '<button id="demoexit" type="button">Criar conta</button></div>' : '') +
       updBanner() +
       '<div id="notifhost" class="notifhost"></div>' +
       '</div>' +
@@ -2627,7 +2685,7 @@
           (flags ? '<div class="tflags">' + flags + '</div>' : '') +
           '<div class="tmeta">' + (by ? esc(by.name.split(" ")[0]) + " · " : "") + sinceLabel(t.openedAt) + (t.people > 1 ? " · " + t.people + " pes." : "") + '</div>' +
           '<div class="ttotal">' + money(tableTotal(t)) + '</div></div>';
-        c.onclick = function () { openTableId = t.id; haptic(5); renderApp(); };
+        c.onclick = function () { openTableId = t.id; haptic(5); renderApp(); demoTick(); };
         grid.appendChild(c);
       });
       v.appendChild(grid);
@@ -2650,7 +2708,7 @@
       ok.onclick = function () {
         var nm = (scrim.querySelector("#tn").value || sug).trim() || sug;
         var t = { id: uid(), name: nm, openedAt: Date.now(), updatedAt: Date.now(), byId: state.activeStaffId, status: "aberta", note: "", people: ppl, items: [] };
-        state.tables.push(t); persist(); haptic(8); closeSheet(); openTableId = t.id; renderApp();
+        state.tables.push(t); persist(); haptic(8); closeSheet(); openTableId = t.id; renderApp(); demoTick();
       };
       f.appendChild(ok);
     });
@@ -2840,7 +2898,7 @@
             var e2 = t.items.find(function (x) { return x.menuId === m.id && !(x.kitchen && x.done); });
             if (e2) { bumpItemQty(t, e2, 1); }
             else { var ni = { id: uid(), menuId: m.id, name: m.name, price: m.price, qty: 1, kitchen: !!m.kitchen, done: false, note: "", addedAt: Date.now(), updatedAt: Date.now() }; t.items.push(ni); dropIds.push(ni.id); touchTable(t); }
-            persist(); haptic(6); beep(m.kitchen ? "kitchen" : "add"); toast(m.name + " +1"); paint();
+            persist(); haptic(6); beep(m.kitchen ? "kitchen" : "add"); toast(m.name + " +1"); paint(); demoTick();
           };
           pg.appendChild(btn);
         });
@@ -2854,9 +2912,13 @@
 
   function closeBill(t) {
     var people = t.people || 1, service = null, method = null, received = "", partial = false, partialAmount = 0;
-    var savedBilling = t.billing || {}, otherName = savedBilling.otherName || "Couvert", otherValue = +savedBilling.otherValue || 0;
+    var cfgOther = state.settings.otherService || {};
+    var savedBilling = t.billing || {};
+    var otherName = savedBilling.otherName || cfgOther.name || "Couvert";
+    var otherValue = t.billing ? (+savedBilling.otherValue || 0) : (cfgOther.on ? (+cfgOther.value || 0) : 0);
     var paidBefore = tablePaid(t);
     if (paidBefore) service = !!savedBilling.service;
+    else if (state.settings.serviceDefault) service = true;
     var disc = { on: +savedBilling.discount > 0, type: "rs", val: +savedBilling.discount || 0 };
     var pct = paidBefore && typeof savedBilling.servicePct === "number" ? savedBilling.servicePct : (typeof state.settings.servicePct === "number" ? state.settings.servicePct : 10);
     openSheet("Fechar conta · " + t.name, function (body) {
@@ -2890,7 +2952,7 @@
         t.items.forEach(function (it) { h += '<div class="recap-row"><span>' + it.qty + '× ' + esc(it.name) + '</span><span class="mono">' + money(it.price * it.qty) + '</span></div>'; });
         h += '<div class="recap-row"><span>Subtotal</span><span class="mono">' + money(c.sub) + '</span></div>';
         if (c.d) h += '<div class="recap-row disc"><span>Desconto ' + (disc.type === "pct" ? disc.val + "%" : "") + '</span><span class="mono">- ' + money(c.d) + '</span></div>';
-        if (c.svc) h += '<div class="recap-row"><span>Serviço ' + pct + '%</span><span class="mono">' + money(c.svc) + '</span></div>';
+        if (c.svc) h += '<div class="recap-row"><span>Taxa de serviço ' + pct + '%</span><span class="mono">' + money(c.svc) + '</span></div>';
         if (c.extra) h += '<div class="recap-row"><span>' + esc(otherName) + '</span><span class="mono">' + money(c.extra) + '</span></div>';
         if (paidBefore) h += '<div class="recap-row disc"><span>Já pago</span><span class="mono">- ' + money(paidBefore) + '</span></div>';
         h += '<div class="recap-row grand"><span>Total</span><b>' + money(c.total) + '</b></div>';
@@ -2967,7 +3029,7 @@
         state.tables = state.tables.filter(function (x) { return x.id !== t.id; });
         delete lastTotals[t.id]; persist(); closeSheet(); haptic([10, 40, 20]); beep("paid");
         payFx(total, function () {
-          openTableId = null; current = "mesas"; renderApp(); toast("Conta paga · " + money(total));
+          openTableId = null; current = "mesas"; renderApp(); toast("Conta paga · " + money(total)); demoTick(3);
           receiptAfterClose(sale);
         });
       };
@@ -3131,8 +3193,15 @@
   }
 
   function tableAsOrder(t) {
+    var sub = tableTotal(t);
+    var pct = typeof state.settings.servicePct === "number" ? state.settings.servicePct : 10;
+    var svc = state.settings.serviceDefault ? sub * pct / 100 : 0;
+    var co = state.settings.otherService || {};
+    var extra = (co.on && +co.value > 0) ? +co.value : 0;
     return { table: t.name, items: t.items.map(function (it) { return { name: it.name, price: it.price, qty: it.qty, note: it.note }; }),
-      subtotal: tableTotal(t), discount: 0, service: 0, total: tableTotal(t), people: t.people || 1, pay: null };
+      subtotal: sub, discount: 0, service: svc, servicePct: pct, serviceDefault: !!state.settings.serviceDefault,
+      otherService: extra ? { name: co.name || "Outro serviço", value: extra } : null,
+      total: sub + svc + extra, people: t.people || 1, pay: null };
   }
   function receiptText(o) {
     var L = [];
@@ -3145,7 +3214,8 @@
     });
     L.push("------------------------------");
     if (o.discount) L.push("Desconto   - " + money(o.discount));
-    if (o.service) L.push("Serviço   " + money(o.service));
+    if (o.service) L.push("Taxa de serviço   " + money(o.service));
+    if (o.otherService && o.otherService.value) L.push((o.otherService.name || "Outros serviços") + "   " + money(o.otherService.value));
     L.push("TOTAL   " + money(o.total));
     if (o.people > 1) L.push("Por pessoa (" + o.people + ")   " + money(o.total / o.people));
     if (o.pay && o.pay.method) L.push("Pago em " + o.pay.method);
@@ -3204,11 +3274,21 @@
       if (it.note) L.push("   * " + it.note);
     });
     L.push(rule);
-    if (kind !== "comanda") {
+    if (kind === "comanda") {
+      // Comanda não é a conta final: imprime uma PRÉVIA de valores pra conferência.
+      var hasTax = o.service || (o.otherService && o.otherService.value);
+      if (o.subtotal != null) L.push(row("Subtotal", money(o.subtotal)));
+      if (o.service) L.push(row("Taxa de servico" + (o.servicePct ? " " + o.servicePct + "%" : ""), money(o.service)));
+      if (o.otherService && o.otherService.value) L.push(row(o.otherService.name || "Outros servicos", money(o.otherService.value)));
+      if (hasTax) {
+        L.push(row("Total estimado", money(o.total)));
+        L.push(center("* valores conferidos no fechamento", w));
+      }
+    } else {
       if (o.subtotal != null && (o.discount || o.service)) L.push(row("Subtotal", money(o.subtotal)));
       if (o.discount) L.push(row("Desconto" + (o.discountLabel ? " (" + o.discountLabel + ")" : ""), "-" + money(o.discount)));
-      if (o.service) L.push(row("Serviço", money(o.service)));
-      if (o.otherService && o.otherService.value) L.push(row(o.otherService.name || "Outro serviço", money(o.otherService.value)));
+      if (o.service) L.push(row("Taxa de servico", money(o.service)));
+      if (o.otherService && o.otherService.value) L.push(row(o.otherService.name || "Outros servicos", money(o.otherService.value)));
       if (o.previousPaid) L.push(row("Pagamentos anteriores", "-" + money(o.previousPaid)));
       L.push(row("TOTAL", money(o.total)));
       if (o.people > 1) L.push(row("Por pessoa (" + o.people + ")", money(o.total / o.people)));
@@ -3324,7 +3404,8 @@
     s1.innerHTML = '<h4>Estabelecimento</h4>' +
       '<div class="cfg-row">Nome<span class="right muted">' + esc(state.biz.name) + '</span></div>' +
       '<div class="cfg-row">Tipo<span class="right muted">' + esc((TYPES.find(function (t) { return t.id === state.biz.type; }) || {}).label || "") + '</span></div>' +
-      '<div class="cfg-row">Taxa de serviço<span class="right muted">' + ((typeof state.settings.servicePct === "number" ? state.settings.servicePct : 10)) + '% · ' + (state.settings.serviceDefault ? "liga por padrão" : "desligada por padrão") + '</span></div>';
+      '<div class="cfg-row">Taxa de serviço<span class="right muted">' + ((typeof state.settings.servicePct === "number" ? state.settings.servicePct : 10)) + '% · ' + (state.settings.serviceDefault ? "liga por padrão" : "desligada por padrão") + '</span></div>' +
+      '<div class="cfg-row">Outros serviços<span class="right muted">' + ((state.settings.otherService && state.settings.otherService.name) ? esc(state.settings.otherService.name) + ' · ' + money(+state.settings.otherService.value || 0) + (state.settings.otherService.on ? ' · liga por padrão' : '') : 'não configurado') + '</span></div>';
     var e = document.createElement("button"); e.className = "cfg-row act"; e.textContent = "Editar dados"; e.onclick = editBiz; s1.appendChild(e);
     v.appendChild(s1);
 
@@ -3479,8 +3560,15 @@
 
     var wipe = document.createElement("button"); wipe.className = "btn danger block"; wipe.style.marginTop = "16px"; wipe.innerHTML = ic("trash", 18) + " Apagar tudo e recomeçar";
     wipe.onclick = function () {
-      confirmDialog("Apaga estabelecimento, equipe, cardápio, mesas e histórico deste aparelho. Não dá pra desfazer.", "Apagar tudo", function () {
-        try { localStorage.removeItem(KEY); } catch (e) {} state = blankState(); flow = "welcome"; renderAll();
+      confirmDialog("Apaga estabelecimento, equipe, cardápio, mesas e histórico deste aparelho — e, por segurança, encerra a sessão em TODOS os aparelhos ligados a esta conta. Não dá pra desfazer.", "Apagar tudo", function () {
+        var wasLogged = !!authToken;
+        authRevokeAllSessions().then(function () {
+          try { localStorage.removeItem(KEY); } catch (e) {}
+          try { localStorage.removeItem("pedeai.auth.token"); } catch (e) {}
+          state = blankState(); migrate(); flow = "welcome";
+          syncResetRuntime(); renderAll();
+          toast(wasLogged ? "Tudo apagado; sessões encerradas em todos os aparelhos" : "Tudo apagado neste aparelho");
+        });
       }, true);
     };
     v.appendChild(wipe);
@@ -3517,9 +3605,13 @@
         '<label class="field"><span>Nome</span><input id="bn" value="' + esc(state.biz.name) + '"></label>' +
         '<label class="field"><span>Tipo</span><select id="bt">' + TYPES.map(function (t) { return '<option value="' + t.id + '"' + (t.id === state.biz.type ? " selected" : "") + '>' + t.label + '</option>'; }).join("") + '</select></label>' +
         '<label class="field"><span>Taxa de serviço (%)</span><input id="bsvc" inputmode="numeric" value="' + ((typeof state.settings.servicePct === "number" ? state.settings.servicePct : 10)) + '"></label>' +
-        '<div class="divide"><span>Ligar serviço por padrão ao fechar</span><button class="switch' + (state.settings.serviceDefault ? " on" : "") + '" id="bsd"></button></div>';
+        '<div class="divide"><span>Ligar serviço por padrão ao fechar</span><button class="switch' + (state.settings.serviceDefault ? " on" : "") + '" id="bsd"></button></div>' +
+        '<label class="field"><span>Outros serviços — nome</span><input id="bosn" maxlength="40" value="' + esc((state.settings.otherService && state.settings.otherService.name) || "") + '" placeholder="Ex.: Couvert artístico"></label>' +
+        '<label class="field"><span>Outros serviços — valor (R$)</span><input id="bosv" inputmode="decimal" value="' + ((state.settings.otherService && +state.settings.otherService.value) ? String(state.settings.otherService.value).replace(".", ",") : "") + '" placeholder="R$ 0,00"></label>' +
+        '<div class="divide"><span>Incluir "outros serviços" por padrão ao fechar</span><button class="switch' + (state.settings.otherService && state.settings.otherService.on ? " on" : "") + '" id="bosd"></button></div>';
       b.querySelector("#lg").onchange = function (e) { var f = e.target.files[0]; if (!f) return; var rd = new FileReader(); rd.onload = function () { state.biz.logo = rd.result; persist(); closeSheet(); editBiz(); }; rd.readAsDataURL(f); };
       b.querySelector("#bsd").onclick = function () { this.classList.toggle("on"); };
+      b.querySelector("#bosd").onclick = function () { this.classList.toggle("on"); };
     }, function (f) {
       var ok = document.createElement("button"); ok.className = "btn red block lg slab"; ok.textContent = "Salvar";
       ok.onclick = function () {
@@ -3527,6 +3619,11 @@
         state.biz.type = scrim.querySelector("#bt").value;
         var p = parseInt(scrim.querySelector("#bsvc").value, 10); state.settings.servicePct = isNaN(p) ? 10 : Math.max(0, Math.min(30, p));
         state.settings.serviceDefault = scrim.querySelector("#bsd").classList.contains("on");
+        state.settings.otherService = {
+          name: (scrim.querySelector("#bosn").value || "").trim().slice(0, 40),
+          value: Math.max(0, parseBR(scrim.querySelector("#bosv").value) || 0),
+          on: scrim.querySelector("#bosd").classList.contains("on")
+        };
         touchCfg(); persist(); closeSheet(); renderApp();
       };
       f.appendChild(ok);
@@ -3896,7 +3993,7 @@
   // Só no modo PWA (site). Dentro do APK (Capacitor) os arquivos já vêm no pacote —
   // um SW aqui só arriscaria servir versão velha depois de atualizar o app.
   if (!window.Capacitor && "serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
-    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js?v=auto-8").catch(function (e) { reportError("serviceworker", { message: "registro do SW falhou: " + (e && e.message || e), stack: e && e.stack }); }); });
+    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js?v=auto-9").catch(function (e) { reportError("serviceworker", { message: "registro do SW falhou: " + (e && e.message || e), stack: e && e.stack }); }); });
   } else if (window.Capacitor && "serviceWorker" in navigator) {
     // Desativa apenas o SW deste app no APK, preservando os caches existentes.
     try {

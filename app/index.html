@@ -256,7 +256,7 @@
   .staffchip .rl { font-size: 9px; font-weight: 700; color: var(--bone-faint); text-transform: uppercase; letter-spacing: .06em; }
 
   main { flex: 1; padding: 18px 16px 116px; }
-  .view-in { animation: viewIn .22s cubic-bezier(.2,.9,.3,1); }
+  .view-in { animation: none; }
   .screen-title { font-family: "Anton", sans-serif; text-transform: uppercase; font-size: 26px; margin-bottom: 16px; }
   .screen-sub { color: var(--bone-dim); font-size: 13px; margin: -10px 0 14px; }
 
@@ -1095,7 +1095,7 @@
   // ---------- state ----------
   function blankState() {
     return { setup: false, setupOwn: false, version: VERSION, biz: { name: "", type: "bar", logo: null }, linkedCashier: true,
-      settings: { theme: "auto", haptics: true, sound: true, servicePct: 10, otherService: { name: "", value: 0, on: false }, printer: { mode: "off", width: 58, showOnClose: false, autoBill: false, header: "" } },
+      settings: { theme: "dark", haptics: true, sound: true, servicePct: 10, otherService: { name: "", value: 0, on: false }, printer: { mode: "off", width: 58, showOnClose: false, autoBill: false, header: "" } },
       ui: { kitchenSeenAt: 0 },
       sync: { room: null, pin: null, role: "full", enabled: false, server: "", cfgAt: 0, tomb: {}, status: "off" },
       staff: [], activeStaffId: null, cats: ["Geral"], menu: [], tables: [], day: { date: todayStr(), sales: [] }, history: [] };
@@ -1120,7 +1120,7 @@
     if (!state.staff.length && state.setup) state.staff = [{ id: uid(), name: (state.biz && state.biz.name) ? "Responsável" : "Você", role: "admin" }];
     if (!state.activeStaffId || !state.staff.some(function (s) { return s.id === state.activeStaffId; })) state.activeStaffId = state.staff[0] ? state.staff[0].id : null;
     if (!state.settings.printer) state.settings.printer = { mode: "off", width: 58, showOnClose: false, autoBill: false, header: "" };
-    if (!state.settings.theme) state.settings.theme = "auto";
+    if (!state.settings.theme || state.settings.theme === "auto") state.settings.theme = "dark";
     if (!state.ui) state.ui = { kitchenSeenAt: 0 };
     (state.tables || []).forEach(function (t) {
       if (t.note == null) t.note = "";
@@ -1599,7 +1599,7 @@
     ["syncmanual", "syncmanualcfg"].forEach(function (id) {
       var b = document.getElementById(id);
       if (!b) return;
-      b.disabled = !!on || (syncBusy && !syncBackgrounded);
+      b.disabled = !!on || !!syncManualPromise || !storeLinked();
       b.classList.toggle("is-loading", !!on);
       b.textContent = on ? "Sincronizando…" : "Sincronizar Manualmente";
     });
@@ -1744,7 +1744,7 @@
       button.setAttribute("aria-label", "Conexão: " + networkLabel() + ". Abrir sincronização e histórico");
     }
     ["syncmanual", "syncmanualcfg"].forEach(function (id) {
-      var b = document.getElementById(id); if (b) b.disabled = !!syncManualPromise || syncBusy || !storeLinked();
+      var b = document.getElementById(id); if (b) b.disabled = !!syncManualPromise || !storeLinked();
     });
     var status = document.getElementById("networkcfgstatus"); if (status) status.textContent = networkLabel();
     paintReconnBar();
@@ -2036,7 +2036,7 @@
     var a = { id: uid(), name: "Você (dono)", role: "admin" };
     var now = Date.now();
     state = { setup: true, version: VERSION, biz: { name: "Bar do Cacau", type: "bar", logo: null }, linkedCashier: true,
-      settings: { theme: "auto", haptics: true, sound: true, servicePct: 10 }, ui: { kitchenSeenAt: 0, demo: true, demoStart: now, demoActs: 0 },
+      settings: { theme: "dark", haptics: true, sound: true, servicePct: 10 }, ui: { kitchenSeenAt: 0, demo: true, demoStart: now, demoActs: 0 },
       // Demo = ambiente local/mock: estabelecimento NÃO vinculado, sync desligado.
       store: { id: null, name: "", role: "full", enabled: false, jwt: "", jwtExp: 0, cfgAt: 0, tomb: {}, _tombPending: {}, status: "off", events: [] },
       staff: [a], activeStaffId: a.id, cats: m.cats, menu: m.menu,
@@ -2643,7 +2643,7 @@
     var m = wiz.useTemplate ? buildMenu(wiz.type) : { cats: ["Geral"], menu: [] };
     var admin = { id: uid(), name: wiz.adminName, role: "admin" };
     state = { setup: true, setupOwn: true, version: VERSION, biz: { name: wiz.name, type: wiz.type, logo: wiz.logo }, linkedCashier: wiz.linked,
-      settings: { theme: (state.settings && state.settings.theme) || "auto", haptics: !(state.settings && state.settings.haptics === false), sound: !(state.settings && state.settings.sound === false), servicePct: wiz.service ? 10 : 10, serviceDefault: !!wiz.service, printer: (state.settings && state.settings.printer) || { mode: "off", width: 58, showOnClose: false, autoBill: false, header: "" } },
+      settings: { theme: "dark", haptics: !(state.settings && state.settings.haptics === false), sound: !(state.settings && state.settings.sound === false), servicePct: wiz.service ? 10 : 10, serviceDefault: !!wiz.service, printer: (state.settings && state.settings.printer) || { mode: "off", width: 58, showOnClose: false, autoBill: false, header: "" } },
       ui: { kitchenSeenAt: 0 },
       sync: (state && state.store) || { room: null, pin: null, role: "full", enabled: false, server: "", cfgAt: 0, tomb: {}, status: "off" },
       staff: [admin], activeStaffId: admin.id, cats: m.cats, menu: m.menu, tables: [], day: { date: todayStr(), sales: [] }, history: [] };
@@ -2676,7 +2676,9 @@
           : '<button class="staffchip" id="staffchip"><span class="av">' + esc(initials(st ? st.name : "")) + '</span>' +
             '<span><span class="nm">' + esc((st ? st.name : "").split(" ")[0] || (sr && sr !== "full" ? syncRoleLabel(sr) : "—")) + '</span><br><span class="rl">' + (sr && sr !== "full" ? esc(state.store.name || "") : (ROLE_LABEL[role] || "")) + '</span></span></button>') +
       '</div><div class="awning thin"></div>' +
-      (licState() === "trial" ? '<div class="trialbar">Versão de teste · ' + licDaysLeft() + (licDaysLeft() > 1 ? ' dias restantes' : ' dia restante') + '</div>' : '') +
+      /* O status do acesso fica em Minha conta; não polui a comanda com uma
+         faixa de demonstração depois que o usuário já autenticou. */
+      '' +
       (isDemo() ? '<div class="demobar">' + demoBarText() + '<button id="demoexit" type="button">Criar conta</button></div>' : '') +
       updBanner() +
       '<div id="notifhost" class="notifhost"></div>' +

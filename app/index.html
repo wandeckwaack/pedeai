@@ -531,7 +531,7 @@
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.13.0";
+  var KEY = "pedeai.v2", VERSION = "4.13.1";
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- logger de erros (silencioso -> backend -> erros_pedeai.log) ----------
@@ -1172,10 +1172,41 @@
       state.store.jwt = j.token;
       state.store.jwtExp = Date.now() + (Math.max(60, (j.expiresIn || 900)) * 1000);
       if (j.role && j.role !== state.store.role) { state.store.role = j.role; }
+      state.store.authFails = 0;
       persist(false);
       return state.store.jwt;
     }).finally(function () { storeJwtInFlight = null; });
     return storeJwtInFlight;
+  }
+  // Circuit-breaker: falha de AUTENTICAÇÃO persistente NÃO deve virar loop infinito
+  // de "Reconectando…". Depois de SYNC_AUTHFAIL_MAX negativas seguidas do /sync ou
+  // do /session, desvincula o estabelecimento (mantendo TODOS os dados locais da
+  // comanda — nunca limpamos localStorage/IndexedDB) e leva o usuário para a tela
+  // de seleção de estabelecimento / login.
+  var SYNC_AUTHFAIL_MAX = 4;
+  function syncNoteAuthFail(why) {
+    if (!state.store) return;
+    state.store.authFails = (state.store.authFails || 0) + 1;
+    state.store.jwt = ""; state.store.jwtExp = 0;
+    if (state.store.authFails >= SYNC_AUTHFAIL_MAX) storeConnectionLost(why || "auth");
+  }
+  function storeConnectionLost(reason) {
+    if (!state.store || !state.store.id) return;
+    var prev = Object.assign({}, state.store);
+    syncResetRuntime();
+    try { reportError("sync-auth-lost", { message: "estabelecimento desvinculado apos falha de auth (" + reason + "), store=" + prev.id }); } catch (e) {}
+    state.store = {
+      id: null, name: "", role: "full", enabled: true, jwt: "", jwtExp: 0,
+      cfgAt: prev.cfgAt || 0, tomb: prev.tomb || {}, _tombPending: {},
+      status: "off", authFails: 0, stuckSince: 0,
+      events: (prev.events || []).concat([{ at: Date.now(), status: "auth-lost",
+        detail: "Sessão do estabelecimento \"" + (prev.name || prev.id) + "\" expirou (" + reason + ")" }]).slice(-100)
+    };
+    persist();                    // dados da comanda (state.tables/day/menu) intactos
+    paintReconnBar();
+    toast("Sua sessão do estabelecimento expirou — entre de novo");
+    if (flow === "app" && !scrim) { renderApp(); storeLinkSheet(); }
+    else renderAll();
   }
 
   function syncCfgBlob() {
@@ -1382,6 +1413,7 @@
       }
       var beforeSnap = notifSnapshot(), changed = syncMerge(res), previousPeers = syncPeers.slice();
       syncFailures = 0; syncRetryAt = 0; syncRetryStatus = 0;
+      state.store.authFails = 0; state.store.stuckSince = 0;
       syncPeers = Array.isArray(res.peers) ? res.peers.slice() : [];
       state.store.peers = syncPeers;
       state.store.lastRoundTripMs = Math.max(0, Date.now() - request.startedAt);
@@ -1409,12 +1441,25 @@
       if (status === 429) delay = Math.min(60000, Math.max(delay, err.retryAfter || 15000));
       else delay = Math.max(delay, err.retryAfter || 0);
       syncRetryAt = Date.now() + delay; syncRetryStatus = status;
-      // 401/403 = JWT venceu ou acesso mudou -> descarta o token e re-mint no próximo tick.
-      if (status === 401 || status === 403) { state.store.jwt = ""; state.store.jwtExp = 0; }
+      if (status === 401 || status === 403) {
+        // Falha de AUTENTICAÇÃO: 1ª/2ª/3ª -> só re-minta o JWT no próximo tick;
+        // persistir -> desvincula e manda pra seleção de loja (sem loop infinito).
+        syncNoteAuthFail("sync " + status);
+      } else if (status === 404) {
+        // O estabelecimento não existe mais no servidor -> não adianta insistir.
+        syncNoteAuthFail("sync 404");
+      } else {
+        // Erro de rede/servidor (inclui "Failed to fetch" de CORS): retry infinito,
+        // MAS se ficar preso online por muito tempo, quebra o loop e avisa.
+        if (navigator.onLine !== false) {
+          state.store.stuckSince = state.store.stuckSince || Date.now();
+          if (Date.now() - state.store.stuckSince > 180000 && syncFailures >= 10) {
+            storeConnectionLost("sem resposta do servidor");
+          }
+        }
+      }
       var next = status === 401 || status === 403 ? "badpin" : status === 404 ? "noroom" : "offline";
-      var message = "Reconectando ao estabelecimento…";
-      networkOffline(next, message);
-      // Só falhas de servidor / rede desconhecida viram log (4xx são esperados).
+      networkOffline(next, "Reconectando ao estabelecimento…");
       if (!(status >= 400 && status < 500)) {
         reportError("sync", { message: "sync falhou (" + (status || "sem status") + "): " + (err && err.message || err), stack: err && err.stack });
       }

@@ -1,1 +1,17 @@
-{"name":"PedeAí","short_name":"PedeAí","start_url":"/app/","display":"standalone","background_color":"#e5372a","theme_color":"#e5372a","lang":"pt-BR","icons":[{"src":"../icon.svg","sizes":"any","type":"image/svg+xml"}]}
+{
+  "name": "PedeAí",
+  "short_name": "PedeAí",
+  "description": "Comanda digital pra bar e restaurante. Funciona sem internet, dados só no aparelho.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#121010",
+  "theme_color": "#121010",
+  "lang": "pt-BR",
+  "categories": ["business", "food", "productivity"],
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

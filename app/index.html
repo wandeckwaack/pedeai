@@ -134,6 +134,8 @@
   .syncdot.s-online { background: var(--green); box-shadow: 0 0 0 3px rgba(67,189,107,.22); }
   .syncdot.s-offline { background: var(--yellow); }
   .syncdot.s-badpin, .syncdot.s-noroom { background: var(--red); }
+  .network-status { display: inline-flex; align-items: center; gap: 5px; flex: none; min-height: 36px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--bone); font: inherit; font-size: 10px; cursor: pointer; }
+  .network-status:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
   .paircode { display: flex; align-items: center; justify-content: space-between; border: 2px solid var(--line); border-radius: 12px; padding: 12px 16px; margin-bottom: 10px; background: var(--ink); }
   .paircode span { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--bone-dim); }
   .paircode b { font-size: 26px; letter-spacing: .18em; }
@@ -367,6 +369,7 @@
   .cfg-row:last-child { border-bottom: none; }
   .cfg-row .right { margin-left: auto; }
   .cfg-row.act { color: var(--red); font-weight: 800; }
+  .cfg-row.collab-add { color: var(--red); background: color-mix(in srgb, var(--red) 14%, var(--ink-2)); border: 2px solid var(--red); border-radius: 12px; margin: 8px 0; justify-content: center; font-size: 15px; }
   .cfg-row .sub { font-size: 11px; color: var(--bone-faint); font-weight: 600; }
   .cfg-opt { display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left; padding: 11px 12px; margin: 6px 0; border: 2px solid var(--line); border-radius: 12px; background: var(--ink); color: var(--bone); }
   .cfg-opt.on { border-color: var(--red); background: rgba(229,55,42,.1); }
@@ -522,7 +525,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.10";
+  var KEY = "pedeai.v2", VERSION = "4.11.0";
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- licença / período de teste (15 dias) ----------
@@ -622,18 +625,56 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   function licResetTrial() { licenseVerified = false; delete lic.token; lic.trialStart = Date.now(); lic.unlocked = false; lic.unlockedAt = 0; lic.deviceId = licDeviceId; licSave(); }
   function licShortId() { return licDeviceId; }
 
-  // ---------- conta PedeAí (Google + restauração) ----------
+  // ---------- conta PedeAí (autenticação + restauração) ----------
   var AUTH_API = "https://painel.deckcorp.com.br/api/pedeai";
-  var AUTH_GOOGLE_WEB_CLIENT = "831429163814-7dntb44dunnh4cn88l06h8v767td2vae.apps.googleusercontent.com";
   var authToken = "", authUser = null, authReady = false, authBackupTimer = null, appAdminToken = "";
+  var authSessionUnavailable = false, authSessionBusy = false, authSessionTimer = null, authSessionAttempt = 0;
   var appLocked = false, appLockBusy = false, appWasBackgrounded = false;
   function authPlugin(name) { try { return window.Capacitor && Capacitor.Plugins && Capacitor.Plugins[name]; } catch (e) { return null; } }
   async function authStoreToken(token) { var s = authPlugin("SecureStorage"); try { if (s && s.set) return await s.set("pedeai.auth.token", token); } catch (e) {} try { localStorage.setItem("pedeai.auth.token", token); } catch (e) {} }
   async function authLoadToken() { var s = authPlugin("SecureStorage"); try { if (s && s.get) { var v = await s.get("pedeai.auth.token"); if (v) return String(v); } } catch (e) {} try { return localStorage.getItem("pedeai.auth.token") || ""; } catch (e) { return ""; } }
   function authHeaders() { return authToken ? { "Content-Type": "application/json", "Authorization": "Bearer " + authToken } : { "Content-Type": "application/json" }; }
-  async function authApi(path, method, body) { var r = await fetch(AUTH_API + path, { method: method || "GET", headers: authHeaders(), body: body === undefined ? undefined : JSON.stringify(body) }); var j = await r.json().catch(function () { return {}; }); if (!r.ok) throw Error(j.error || "falha na conta"); return j; }
-  async function authInit() { authToken = await authLoadToken(); if (!authToken) return false; try { var j = await authApi("/auth/me"); authUser = j.user; authReady = true; return true; } catch (e) { authToken = ""; return false; } }
-  async function authRestore() { try { var j = await authApi("/restore"); if (!j.blob) return; var saved = JSON.parse(j.blob); if (saved && saved.setup !== undefined && (!state.cloudAuthAt || !j.updatedAt || j.updatedAt > state.cloudAuthAt)) { state = saved; state.cloudAuthAt = j.updatedAt || new Date().toISOString(); migrate(); persist(false); toast("Dados restaurados da sua conta"); } } catch (e) {} }
+  async function authApi(path, method, body) {
+    return networkRequest(AUTH_API + path, { method: method || "GET", headers: authHeaders(), body: body === undefined ? undefined : JSON.stringify(body) }, 10000).promise;
+  }
+  async function authInit() {
+    if (authSessionBusy) return authReady;
+    authSessionBusy = true;
+    var token;
+    try {
+      if (!authToken) authToken = await authLoadToken();
+      token = authToken; if (!token) return false;
+      if (navigator.onLine === false) throw Error("Sem rede");
+      var j = await authApi("/auth/me");
+      if (authToken !== token) return false;
+      if (!j || !j.user) throw Error("Resposta inválida da conta");
+      authUser = j.user; authReady = true; authSessionUnavailable = false; authSessionAttempt = 0;
+      clearTimeout(authSessionTimer); return true;
+    } catch (e) {
+      if (authToken !== token) return false;
+      authSessionUnavailable = !e.status || e.status >= 500 || e.status === 408 || e.status === 429;
+      if (authSessionUnavailable) {
+        clearTimeout(authSessionTimer);
+        authSessionTimer = setTimeout(authResumeSession, Math.max(networkBackoff(++authSessionAttempt), e.retryAfter || 0));
+      } else authReady = false;
+      return authReady;
+    } finally { authSessionBusy = false; }
+  }
+  function authResumeSession() {
+    if (!authSessionUnavailable || authSessionBusy || !authToken) return;
+    authInit().then(function (ok) {
+      if (authSessionUnavailable) return;
+      if (!ok) { renderAll(); return; }
+      authRestore().then(function () { return licInit(); }).then(function () { renderAll(); syncStart(); wakeLockMaybe(); });
+    }).catch(function () {});
+  }
+  function renderSessionWaiting() {
+    appEl.innerHTML = '<div class="ob"><div class="awning"></div><div class="ob-pad"><div class="ob-mid">' + mark(56) +
+      '<h1 class="anton">Aguardando conexão</h1><p class="ob-tag">Sua sessão está salva. Vamos confirmá-la automaticamente quando o servidor responder. Seus dados neste aparelho continuam preservados.</p>' +
+      '<button class="btn bone block" id="sessionretry">Tentar conexão agora</button></div></div></div>';
+    document.getElementById("sessionretry").onclick = authResumeSession;
+  }
+  async function authRestore() { if (state.setup) return; try { var j = await authApi("/restore"); if (!j.blob || state.setup) return; var saved = JSON.parse(j.blob); if (saved && saved.setup !== undefined && (!state.cloudAuthAt || !j.updatedAt || j.updatedAt > state.cloudAuthAt)) { state = saved; state.cloudAuthAt = j.updatedAt || new Date().toISOString(); migrate(); persist(false); toast("Dados restaurados da sua conta"); } } catch (e) {} }
   function authBackupSoon() { if (!authReady || !authToken) return; clearTimeout(authBackupTimer); authBackupTimer = setTimeout(function () { authApi("/backup", "POST", { blob: JSON.stringify(state) }).then(function (j) { if (j && j.updatedAt) { state.cloudAuthAt = j.updatedAt; try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} } }).catch(function () {}); }, 250); }
   async function authAfterLogin() {
     try {
@@ -645,7 +686,15 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       if (authUser.access && authUser.access.status === "trial" && authUser.access.active) {
         toast("Teste grátis de 15 dias · válido até " + new Date(authUser.access.expiresAt).toLocaleString("pt-BR"));
       }
-    } catch (e) { authReady = false; renderAuthGate("loginEmail", e.message || "Não foi possível confirmar a sessão. Entre novamente."); }
+    } catch (e) {
+      authSessionUnavailable = !e.status || e.status >= 500 || e.status === 408 || e.status === 429;
+      authReady = false;
+      if (authSessionUnavailable && authToken) {
+        clearTimeout(authSessionTimer);
+        authSessionTimer = setTimeout(authResumeSession, Math.max(networkBackoff(++authSessionAttempt), e.retryAfter || 0));
+        renderSessionWaiting();
+      } else renderAuthGate("loginEmail", e.message || "Não foi possível confirmar a sessão. Entre novamente.");
+    }
   }
   function biometricPlugin() { return authPlugin("BiometricAuth") || authPlugin("BiometricAuthNative"); }
   async function appUnlock() {
@@ -664,14 +713,11 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     appEl.innerHTML = '<div class="app-lock"><div class="lock-card">' + mark(58) + '<h1 class="anton" style="font-size:30px;margin:18px 0 10px">PedeAí bloqueado</h1><p class="ob-tag" style="color:#fff">Use a digital, o rosto ou o PIN do aparelho para continuar.</p><button class="btn bone block xl slab" id="unlockapp">Desbloquear</button></div></div>';
     document.getElementById("unlockapp").onclick = appUnlock;
   }
-  function authGoogleWebMount() { authEmailOnly("choose"); }
   function authEmailOnly(mode) { var g = document.getElementById("authgooglewrap"); if (g) g.remove(); var e = document.getElementById("authemail"); if (e && mode === "loginEmail") { e.type = "text"; e.placeholder = "voce@exemplo.com ou (00) 00000-0000"; var el = e.parentNode.querySelector("span"); if (el) el.textContent = "E-mail ou telefone"; } if (e && mode === "register" && !document.getElementById("authphone")) e.parentNode.insertAdjacentHTML("beforebegin", '<label class="field"><span>Telefone com DDD</span><input id="authphone" type="tel" autocomplete="tel" placeholder="(00) 00000-0000"></label>'); if (e && mode === "register") { e.type = "email"; e.placeholder = "voce@exemplo.com"; e.parentNode.querySelector("span").textContent = "E-mail"; } var p = document.getElementById("authpass"); if (p && !document.getElementById("authpassview")) { var hint = document.createElement("div"); hint.id = "authpasshint"; hint.textContent = mode === "register" ? "Use pelo menos 8 caracteres." : "Digite sua senha."; hint.style.cssText = "font-size:12px;margin-top:6px;color:#f7d4cc"; p.parentNode.appendChild(hint); p.addEventListener("input", function () { if (mode === "register") { var n = p.value.length; hint.textContent = n < 8 ? "Faltam " + (8 - n) + " caracteres." : "Senha com tamanho válido."; hint.style.color = n < 8 ? "#f7d4cc" : "#b9f5c8"; } }); var b = document.createElement("button"); b.id = "authpassview"; b.type = "button"; b.textContent = "👁"; b.className = "btn ghost"; b.style.cssText = "margin-top:8px;min-height:38px;width:auto;padding:4px 14px"; b.onclick = function () { p.type = p.type === "password" ? "text" : "password"; b.textContent = p.type === "password" ? "👁" : "🙈"; }; p.parentNode.appendChild(b); var f = document.createElement("button"); f.id = "authforgot"; f.type = "button"; f.textContent = "Esqueci minha senha"; f.className = "btn ghost"; f.style.cssText = "margin-top:8px;min-height:38px"; f.onclick = authForgotFlow; if (mode === "loginEmail") p.parentNode.appendChild(f); } }
   function authKeepForm(mode, error, values) { renderAuthGate(mode, error); setTimeout(function () { Object.keys(values || {}).forEach(function (id) { var el = document.getElementById(id); if (el && values[id] != null) el.value = values[id]; }); authEmailOnly(mode); var p = document.getElementById("authpass"); if (p) p.dispatchEvent(new Event("input")); }, 0); }
   async function authForgotFlow() { var identifier = prompt("Digite seu e-mail ou telefone:"); if (!identifier) return; try { await authApi("/auth/forgot", "POST", { identifier: identifier }); var code = prompt("Digite o código de 6 dígitos enviado por e-mail:"); var password = prompt("Digite a nova senha (mínimo 8 caracteres):"); if (!code || !password) return; await authApi("/auth/reset-password", "POST", { identifier: identifier, code: code, password: password }); renderAuthGate("loginEmail", "Senha redefinida. Entre com a nova senha."); } catch (e) { renderAuthGate("loginEmail", e.message || "não foi possível recuperar a senha"); } }
-  function renderAuthGate(mode, error) { var form = mode === "code" ? '<label class="field"><span>Código enviado para ' + esc(authUser && authUser.email) + '</span><input id="authcode" inputmode="numeric" maxlength="6" placeholder="000000"></label><button class="btn red block xl slab" id="authverify">Verificar e continuar</button><button class="btn ghost block" id="authresend">Reenviar código</button>' : mode === "loginEmail" || mode === "register" ? (mode === "register" ? '<label class="field"><span>Seu nome</span><input id="authname" autocomplete="name" placeholder="Como podemos chamar você?"></label>' : '') + '<label class="field"><span>E-mail ou telefone</span><input id="authemail" type="text" autocomplete="username" placeholder="voce@exemplo.com ou (00) 00000-0000"></label><label class="field"><span>Senha (mínimo 8 caracteres)</span><input id="authpass" type="password" autocomplete="' + (mode === "register" ? 'new-password' : 'current-password') + '" placeholder="••••••••"></label><button class="btn red block xl slab" id="authemailgo">' + (mode === "register" ? 'Criar conta' : 'Entrar com e-mail') + '</button>' + (mode === "loginEmail" ? '<button class="btn ghost block plain" id="adminloginfromemail" style="font-size:12px">Acesso administrativo</button>' : '') + '<button class="btn ghost block" id="authback">Voltar</button>' : '<p class="ob-tag">Entre com seu e-mail ou crie uma conta para continuar.</p><button class="btn bone block" id="authemailin">Entrar com e-mail</button><button class="btn ghost block" id="authregister">Criar conta com e-mail</button><button class="btn ghost block plain" id="adminloginchoose" style="font-size:12px">Acesso administrativo</button><button class="btn ghost block" id="authbackwelcome">Voltar</button>'; appEl.innerHTML = '<div class="ob"><div class="awning"></div><div class="ob-pad"><div class="ob-top"></div><div class="ob-mid">' + mark(56) + '<h1 class="anton">Entrar no PedeAí</h1><p class="ob-tag">Salve seus dados na sua conta e restaure tudo mesmo depois de trocar ou reinstalar o aparelho.</p>' + form + (error ? '<div class="ob-tag" style="color:#ffb3c1;margin-top:12px">' + esc(error) + '</div>' : '') + '</div><div class="credit">Conta protegida por e-mail e telefone</div></div></div>'; if (mode === "code") { document.getElementById("authverify").onclick = authVerifyCode; document.getElementById("authresend").onclick = authSendCode; } else if (mode === "loginEmail" || mode === "register") { document.getElementById("authemailgo").onclick = mode === "register" ? authEmailRegister : authEmailLogin; document.getElementById("authback").onclick = function () { renderAuthGate("choose"); }; var adminLink = document.getElementById("adminloginfromemail"); if (adminLink) adminLink.onclick = function () { renderAdminLogin(); }; } else { document.getElementById("authemailin").onclick = function () { renderAuthGate("loginEmail"); }; document.getElementById("authregister").onclick = function () { renderAuthGate("register"); }; document.getElementById("adminloginchoose").onclick = function () { renderAdminLogin(); }; document.getElementById("authbackwelcome").onclick = function () { flow = "welcome"; renderAll(); }; } }
+  function renderAuthGate(mode, error) { var form = mode === "code" ? '<label class="field"><span>Código enviado para ' + esc(authUser && authUser.email) + '</span><input id="authcode" inputmode="numeric" maxlength="6" placeholder="000000"></label><button class="btn red block xl slab" id="authverify">Verificar e continuar</button><button class="btn ghost block" id="authresend">Reenviar código</button>' : mode === "loginEmail" || mode === "register" ? (mode === "register" ? '<label class="field"><span>Seu nome</span><input id="authname" autocomplete="name" placeholder="Como podemos chamar você?"></label>' : '') + '<label class="field"><span>E-mail ou telefone</span><input id="authemail" type="text" autocomplete="username" placeholder="voce@exemplo.com ou (00) 00000-0000"></label><label class="field"><span>Senha (mínimo 8 caracteres)</span><input id="authpass" type="password" autocomplete="' + (mode === "register" ? 'new-password' : 'current-password') + '" placeholder="••••••••"></label><button class="btn red block xl slab" id="authemailgo">' + (mode === "register" ? 'Criar conta' : 'Entrar com e-mail') + '</button>' + (mode === "loginEmail" ? '<button class="btn ghost block plain" id="adminloginfromemail" style="font-size:12px">Acesso administrativo</button>' : '') + '<button class="btn ghost block" id="authback">Voltar</button>' : '<p class="ob-tag">Entre com seu e-mail ou crie uma conta para continuar.</p><button class="btn bone block" id="authemailin">Entrar com e-mail</button><button class="btn ghost block" id="authregister">Criar conta com e-mail</button><button class="btn ghost block" id="authbackwelcome">Voltar</button>'; appEl.innerHTML = '<div class="ob"><div class="awning"></div><div class="ob-pad"><div class="ob-top"></div><div class="ob-mid">' + mark(56) + '<h1 class="anton">Entrar no PedeAí</h1><p class="ob-tag">Salve seus dados na sua conta e restaure tudo mesmo depois de trocar ou reinstalar o aparelho.</p>' + form + (error ? '<div class="ob-tag" style="color:#ffb3c1;margin-top:12px">' + esc(error) + '</div>' : '') + '</div><div class="credit">Conta protegida por e-mail e telefone</div></div></div>'; if (mode === "code") { document.getElementById("authverify").onclick = authVerifyCode; document.getElementById("authresend").onclick = authSendCode; } else if (mode === "loginEmail" || mode === "register") { document.getElementById("authemailgo").onclick = mode === "register" ? authEmailRegister : authEmailLogin; document.getElementById("authback").onclick = function () { renderAuthGate("choose"); }; var adminLink = document.getElementById("adminloginfromemail"); if (adminLink) adminLink.onclick = function () { renderAdminLogin(); }; } else { document.getElementById("authemailin").onclick = function () { renderAuthGate("loginEmail"); }; document.getElementById("authregister").onclick = function () { renderAuthGate("register"); }; document.getElementById("authbackwelcome").onclick = function () { flow = "welcome"; renderAll(); }; } }
   var _authRenderGate = renderAuthGate; renderAuthGate = function (mode, error) { var out = _authRenderGate(mode, error); setTimeout(function () { authEmailOnly(mode); }, 0); return out; };
-  async function authGoogleToken(idToken) { var j = await fetch(AUTH_API + "/auth/google", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: idToken }) }).then(function (r) { return r.json().then(function (x) { if (!r.ok) throw Error(x.error || "login recusado"); return x; }); }); authToken = j.token; authUser = j.user; await authStoreToken(authToken); await authSendCode(); }
-  async function authGoogleLogin() { var b = document.getElementById("authgoogle"); if (b) { b.disabled = true; b.textContent = "Abrindo Google…"; } try { var g = authPlugin("GoogleSignIn"); if (!g) { if (!window.google || !google.accounts || !google.accounts.id) throw Error("o Google ainda está carregando — tente novamente"); google.accounts.id.initialize({ client_id: AUTH_GOOGLE_WEB_CLIENT, callback: function (response) { authGoogleToken(response.credential).catch(function (e) { renderAuthGate("choose", e.message || "login recusado"); }); } }); google.accounts.id.prompt(function (n) { if (n.isNotDisplayed() || n.isSkippedMoment()) renderAuthGate("choose", "o Google não abriu; tente novamente ou use e-mail"); }); return; } await g.initialize({ clientId: AUTH_GOOGLE_WEB_CLIENT }); var res = await g.signIn(); if (!res || !res.idToken) throw Error("Google não devolveu uma identidade"); await authGoogleToken(res.idToken); } catch (e) { var msg = e && e.code === "NO_CREDENTIAL_AVAILABLE" ? "Nenhuma conta Google está adicionada neste aparelho. Adicione uma conta em Configurações > Contas e tente novamente, ou use e-mail e senha." : (e.message || "não foi possível entrar"); renderAuthGate("choose", msg); } }
   async function authEmailLogin() { var identifier = (document.getElementById("authemail") || {}).value || "", password = (document.getElementById("authpass") || {}).value || ""; if (!identifier.trim() || !password) return authKeepForm("loginEmail", "Informe seu e-mail ou telefone e a senha.", { authemail: identifier, authpass: password }); try { var j = await authApi("/auth/login", "POST", { identifier: identifier, password: password }); authToken = j.token; authUser = j.user; await authStoreToken(authToken); renderAuthGate("code"); } catch (e) { authKeepForm("loginEmail", e.message || "não foi possível entrar", { authemail: identifier, authpass: password }); } }
   async function authEmailRegister() { var values = { authname: ((document.getElementById("authname") || {}).value || ""), authphone: ((document.getElementById("authphone") || {}).value || ""), authemail: ((document.getElementById("authemail") || {}).value || ""), authpass: ((document.getElementById("authpass") || {}).value || "") }; if (values.authpass.length < 8) return authKeepForm("register", "A senha precisa ter pelo menos 8 caracteres.", values); if (!values.authname.trim()) return authKeepForm("register", "Informe seu nome.", values); if (!values.authphone.trim()) return authKeepForm("register", "Informe seu telefone com DDD.", values); if (!values.authemail.trim()) return authKeepForm("register", "Informe seu e-mail.", values); try { var j = await authApi("/auth/register", "POST", { name: values.authname, phone: values.authphone, email: values.authemail, password: values.authpass }); authToken = j.token; authUser = j.user; await authStoreToken(authToken); renderAuthGate("code"); } catch (e) { authKeepForm("register", e.message || "não foi possível criar a conta", values); } }
   async function authSendCode() { try { await authApi("/auth/send-code", "POST", {}); renderAuthGate("code"); } catch (e) { renderAuthGate(authUser && authUser.emailVerified ? "choose" : "code", e.message || "não foi possível enviar o código"); } }
@@ -686,6 +732,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     try { await authApi("/auth/logout", "POST", {}); } catch (e) {}
     var s = authPlugin("SecureStorage"); try { if (s && s.remove) await s.remove({ key: "pedeai.auth.token" }); } catch (e) {}
     try { localStorage.removeItem("pedeai.auth.token"); } catch (e) {}
+    authSessionUnavailable = false; clearTimeout(authSessionTimer);
     authToken = ""; authUser = null; authReady = false; appLocked = false; syncStop();
     flow = "welcome"; renderAll(); toast("Conta desconectada; seus dados continuam salvos");
   }
@@ -752,7 +799,13 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   var todayStr = function () { var d = new Date(); return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); };
   var brDate = function (iso) { var p = iso.split("-"); return p[2] + "/" + p[1]; };
   var hhmm = function (ts) { var d = new Date(ts); return ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2); };
-  var uid = function () { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); };
+  var uid = function () {
+    try {
+      if (crypto.randomUUID) return Date.now().toString(36) + "-" + crypto.randomUUID();
+      var bytes = crypto.getRandomValues(new Uint8Array(16));
+      return Date.now().toString(36) + "-" + Array.from(bytes).map(function (n) { return n.toString(16).padStart(2, "0"); }).join("");
+    } catch (e) { return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2); }
+  };
   var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
   var initials = function (n) { return (n || "?").trim().split(/\s+/).slice(0, 2).map(function (w) { return w[0]; }).join("").toUpperCase(); };
   // F1 (auditoria): a logo pode chegar de outro aparelho pela sincronização; só aceita data:/blob: como src.
@@ -769,11 +822,23 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   // ---------- som (sintetizado, sem arquivos) ----------
   // "tap"/"add"/"ready"/"kitchen": seguem o interruptor Som (Ajustes).
   // "paid"/"cashier"/"alert": tocam sempre — são os avisos que "não podem passar batido".
-  var _ac = null, _beepLast = 0;
+  var _ac = null, _beepLast = 0, _audioArmed = false;
+  function armAudio() {
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      if (!_ac) _ac = new AC();
+      _audioArmed = true;
+      if (_ac.state === "suspended") _ac.resume().catch(function () {});
+    } catch (e) {}
+  }
+  document.addEventListener("pointerdown", armAudio, { capture: true, passive: true });
+  document.addEventListener("touchstart", armAudio, { capture: true, passive: true });
+  document.addEventListener("keydown", armAudio, true);
   function audioCtx() {
     try {
-      if (!_ac) { var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null; _ac = new AC(); }
-      if (_ac.state === "suspended") _ac.resume();
+      if (!_audioArmed || !_ac) return null;
+      if (_ac.state === "suspended") _ac.resume().catch(function () {});
     } catch (e) { return null; }
     return _ac;
   }
@@ -950,7 +1015,10 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   // O app funciona 100% offline sozinho; quando tem rede, os aparelhos da mesma
   // sala trocam mesas/itens/vendas a cada ~3s (last-write-wins por updatedAt).
   var SYNC_DEFAULT_URL = "https://deckk.duckdns.org/sync";
-  var syncTimer = null, syncBusy = false, syncPushedAt = 0;
+  var SYNC_POLL_MS = 3000, SYNC_TIMEOUT_MS = 8000, SYNC_RETRY_MAX_MS = 15000;
+  var syncTimer = null, syncBusy = false, syncPushedAt = 0, syncEpoch = 0;
+  var syncRequest = null, syncFailures = 0, syncRetryAt = 0, syncRetryStatus = 0;
+  var syncBackgrounded = false, syncLastKick = 0;
   var syncLastToast = "";
   var syncPeers = [];
   function syncUrl() { return (state.sync && state.sync.server) || SYNC_DEFAULT_URL; }
@@ -1008,7 +1076,16 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   function overwrite(dst, src) { var k; for (k in dst) if (dst.hasOwnProperty(k)) delete dst[k]; for (k in src) if (src.hasOwnProperty(k)) dst[k] = src[k]; }
   // Mescla o resultado do servidor MUTANDO os objetos locais no lugar (não troca as
   // referências — senão a tela de comanda/cozinha aberta ficaria apontando pro nada).
-  var TFIELDS = ["name", "status", "note", "people", "byId", "openedAt", "updatedAt"];
+  var TFIELDS = ["name", "status", "note", "people", "byId", "openedAt", "updatedAt", "billing"];
+  function syncMergePayments(local, incoming) {
+    var seen = Object.create(null), out = [];
+    (local || []).concat(incoming || []).forEach(function (p) {
+      if (!p) return;
+      var key = p.id ? "id:" + p.id : "legacy:" + JSON.stringify(p);
+      if (!seen[key]) { seen[key] = true; out.push(p); }
+    });
+    return out;
+  }
   function syncMergeTables(incoming, tomb) {
     var localById = {};
     state.tables.forEach(function (t) { if (t && t.id) localById[t.id] = t; });
@@ -1024,6 +1101,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       }
       var localNewer = (loc.updatedAt || 0) > (srv.updatedAt || 0);
       if (!localNewer) TFIELDS.forEach(function (k) { if (srv[k] !== undefined) loc[k] = srv[k]; });
+      if (loc.payments || srv.payments) loc.payments = syncMergePayments(loc.payments, srv.payments);
       var byItem = {};
       (loc.items || []).forEach(function (it) { if (it && it.id) byItem[it.id] = it; });
       var srvIds = {};
@@ -1034,9 +1112,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
         if (!lit) byItem[sit.id] = sit;
         else if ((sit.updatedAt || 0) > (lit.updatedAt || 0)) overwrite(lit, sit);
       });
-      if (!localNewer) (loc.items || []).slice().forEach(function (it) {
-        if (it && it.id && !srvIds[it.id] && (it.updatedAt || 0) <= (srv.updatedAt || 0)) delete byItem[it.id];
-      });
+      // Itens ausentes permanecem; deletedItems é a fonte de exclusões.
       loc.deletedItems = Object.assign({}, loc.deletedItems || {}, srv.deletedItems || {});
       loc.items = Object.keys(byItem).filter(function (x) { return !Object.prototype.hasOwnProperty.call(loc.deletedItems, x); }).map(function (x) { return byItem[x]; });
     });
@@ -1045,7 +1121,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       if (!t || !t.id) return;
       var tombAt = (tomb && tomb[t.id]) || 0;
       if (tombAt && tombAt >= (t.updatedAt || 0)) return;
-      if (!seen[t.id] && (t.updatedAt || 0) < syncPushedAt) return;
+      // Só uma exclusão explícita remove a mesa; uma resposta atrasada pode omiti-la.
       out.push(t);
     });
     return out;
@@ -1058,8 +1134,10 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   }
   function syncMerge(res) {
     var before = syncSig();
-    state.tables = syncMergeTables(res.tables || [], res.tomb || {});
-    state.sync.tomb = res.tomb || {};
+    var tomb = Object.assign({}, state.sync.tomb || {});
+    Object.keys(res.tomb || {}).forEach(function (id) { tomb[id] = Math.max(tomb[id] || 0, res.tomb[id]); });
+    state.tables = syncMergeTables(res.tables || [], tomb);
+    state.sync.tomb = tomb;
     if (res.day && res.day.date) {
       if (res.day.date > state.day.date) state.day = res.day;
       else if (res.day.date === state.day.date) state.day.sales = syncMergeSales(res.day.sales || []);
@@ -1067,68 +1145,230 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     if (res.cfg && (res.cfgAt || 0) > (state.sync.cfgAt || 0)) { syncApplyCfg(res.cfg); state.sync.cfgAt = res.cfgAt; }
     return before !== syncSig();
   }
+  // Prazo inclui o corpo da resposta. O cancelamento libera a fila mesmo quando
+  // o navegador não implementa AbortController ou deixa o fetch pendurado.
+  function networkRequest(url, options, timeout) {
+    var ctrl = typeof AbortController === "function" ? new AbortController() : null;
+    var rejectRequest, timer, settled = false;
+    var request = {};
+    request.cancel = function () {
+      if (settled) return;
+      settled = true; clearTimeout(timer);
+      if (ctrl) ctrl.abort();
+      rejectRequest(new Error("Requisição interrompida; dados locais preservados"));
+    };
+    request.promise = new Promise(function (resolve, reject) {
+      rejectRequest = reject;
+      timer = setTimeout(request.cancel, timeout || SYNC_TIMEOUT_MS);
+      Promise.resolve().then(function () {
+        if (settled) throw Error("Requisição cancelada");
+        return fetch(url, Object.assign({}, options, { cache: "no-store", signal: ctrl ? ctrl.signal : undefined }));
+      }).then(function (r) {
+        if (!r.ok) {
+          var error = new Error("Falha na conexão (" + r.status + ")"); error.status = r.status;
+          var retry = r.headers && r.headers.get("Retry-After");
+          error.retryAfter = retry ? Math.max(0, /^\d+(\.\d+)?$/.test(retry) ? Number(retry) * 1000 : Date.parse(retry) - Date.now()) : 0;
+          return r.json().catch(function () { return {}; }).then(function (body) { if (body.error) error.message = body.error; throw error; });
+        }
+        return r.status === 204 ? {} : r.json();
+      }).then(function (body) {
+        if (!settled) { settled = true; clearTimeout(timer); resolve(body); }
+      }, function (error) {
+        if (!settled) { settled = true; clearTimeout(timer); reject(error); }
+      });
+    });
+    return request;
+  }
+  function networkBackoff(attempt) {
+    return Math.min(SYNC_RETRY_MAX_MS, 500 * Math.pow(2, Math.min(Math.max(0, attempt - 1), 6))) * (0.8 + Math.random() * 0.2);
+  }
+  function syncSchedule(delay) {
+    clearTimeout(syncTimer); syncTimer = null;
+    if (syncActive()) syncTimer = setTimeout(syncTick, Math.max(0, delay));
+  }
+  function syncCancelRequest() {
+    syncEpoch++;
+    var request = syncRequest; syncRequest = null; syncBusy = false;
+    clearTimeout(syncTimer); syncTimer = null;
+    if (request) request.cancel();
+  }
   function syncTick() {
-    if (syncBusy || !syncActive()) return;
-    if (state.sync.mk && !state.sync.rolePins) { state.sync.rolePins = rolePins(state.sync.pin); persist(); }
-    syncBusy = true;
-    syncPushedAt = Date.now();
-    var ctrl = null; try { ctrl = new AbortController(); } catch (e) {}
-    var killed = setTimeout(function () { if (ctrl) ctrl.abort(); }, 9000);
-    var payload = { room: state.sync.room, pin: state.sync.pin, role: state.sync.role || "full",
+    if (!syncActive()) return Promise.resolve(false);
+    if (syncRequest) return syncRequest.promise;
+    if (Date.now() < syncRetryAt) { syncSchedule(syncRetryAt - Date.now()); return Promise.resolve(false); }
+    if (navigator.onLine === false) {
+      networkOffline("offline", "Sem rede: pedidos preservados neste aparelho");
+      syncSchedule(SYNC_RETRY_MAX_MS); return Promise.resolve(false);
+    }
+    clearTimeout(syncTimer); syncTimer = null;
+    if (state.sync.mk && !state.sync.rolePins) { state.sync.rolePins = rolePins(state.sync.pin); persist(false); }
+    syncBusy = true; syncPushedAt = Date.now();
+    var epoch = syncEpoch, requestedRoom = state.sync.room, requestedPin = state.sync.pin, requestedRole = state.sync.role, requestedUrl = syncUrl();
+    var ping = syncPushedAt.toString(36) + ":" + epoch + ":" + Math.random().toString(36).slice(2);
+    var payload = { room: state.sync.room, pin: state.sync.pin, role: state.sync.role || "full", ping: ping,
       mk: state.sync.mk || "", rolePins: state.sync.mk ? state.sync.rolePins : undefined, tables: state.tables,
       tomb: state.sync.tomb || {}, day: state.day, cfg: syncCfgBlob(), cfgAt: state.sync.cfgAt || 0 };
     if (state.sync.needCreate) payload.create = 1;
-    fetch(syncUrl(), { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload), signal: ctrl ? ctrl.signal : undefined })
-      .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
-      .then(function (res) {
-        clearTimeout(killed);
-        if (res && res.ok) {
-          if (state.sync.needCreate) { state.sync.needCreate = false; }
-          var beforeSnap = notifSnapshot();
-          var changed = syncMerge(res);
-          persist();
-          var wasOnline = state.sync.status === "online";
-          var previousPeers = syncPeers.slice();
-          syncPeers = Array.isArray(res.peers) ? res.peers.slice() : [];
-          state.sync.peers = syncPeers;
-          state.sync.status = "online";
-          state.sync.connectedAt = state.sync.connectedAt || Date.now();
-          state.sync.lastError = "";
-          if (!wasOnline) {
-            syncLastToast = "online";
-            toast("Conexão bem-sucedida · sala " + state.sync.room + " · " + syncRoleLabel(state.sync.role));
-          } else {
-            var joined = syncPeers.filter(function (p) { return previousPeers.indexOf(p) < 0 && p !== state.sync.role; });
-            if (joined.length) toast("Aparelho pareado: " + joined.map(syncRoleLabel).join(", "));
-          }
-          if (_notifReady) notifCheck(beforeSnap, notifSnapshot()); else _notifReady = true;
-          if (changed && flow === "app" && !scrim) renderApp(); else { syncPaintDot(); notifPaint(); }
-        }
-      })
-      .catch(function (err) {
-        clearTimeout(killed);
-        var nextStatus = (err === 403) ? "badpin" : (err === 404) ? "noroom" : "offline";
-        var messages = { badpin: "Acesso recusado: PIN ou função incorretos", noroom: "Sala não encontrada", offline: "Sem conexão — tentando novamente" };
-        state.sync.status = nextStatus;
-        state.sync.lastError = messages[nextStatus];
-        if (syncLastToast !== nextStatus) { syncLastToast = nextStatus; toast(messages[nextStatus]); }
-        syncPaintDot();
-      })
-      .finally(function () { syncBusy = false; });
+    var request = networkRequest(requestedUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    request.startedAt = syncPushedAt; syncRequest = request;
+    var delay = SYNC_POLL_MS;
+    function currentRequest() {
+      return syncRequest === request && epoch === syncEpoch && syncActive() && requestedRoom === state.sync.room &&
+        requestedPin === state.sync.pin && requestedRole === state.sync.role && requestedUrl === syncUrl();
+    }
+    request.promise = request.promise.then(function (res) {
+      if (!currentRequest()) return false;
+      if (!res || !res.ok || !Array.isArray(res.tables) || (res.pong !== undefined && res.pong !== ping)) throw Error("Resposta inválida da sincronização");
+      // Servidores anteriores não devolvem pong; a resposta válida do /sync
+      // continua sendo a confirmação, sem exigir novo pareamento.
+      var beforeSnap = notifSnapshot(), changed = syncMerge(res), previousPeers = syncPeers.slice();
+      state.sync.needCreate = false;
+      syncFailures = 0; syncRetryAt = 0; syncRetryStatus = 0;
+      syncPeers = Array.isArray(res.peers) ? res.peers.slice() : [];
+      state.sync.peers = syncPeers;
+      state.sync.lastRoundTripMs = Math.max(0, Date.now() - request.startedAt);
+      state.sync.heartbeat = res.pong === ping ? "pong" : "http";
+      var recovered = networkOnline();
+      persist(changed || recovered);
+      if (!recovered) {
+        var joined = syncPeers.filter(function (p) { return previousPeers.indexOf(p) < 0 && p !== state.sync.role; });
+        if (joined.length) toast("Aparelho pareado: " + joined.map(syncRoleLabel).join(", "));
+      }
+      if (_notifReady) notifCheck(beforeSnap, notifSnapshot()); else _notifReady = true;
+      if (changed && flow === "app" && !scrim) renderApp(); else notifPaint();
+      return true;
+    }).catch(function (err) {
+      if (!currentRequest()) return false;
+      syncFailures++;
+      delay = networkBackoff(syncFailures);
+      var status = err.status || 0;
+      // Credenciais incorretas e limites do servidor não entram no retry rápido.
+      if (status >= 400 && status < 500) delay = status === 429 ? 600000 : 60000;
+      delay = Math.max(delay, err.retryAfter || 0);
+      syncRetryAt = Date.now() + delay; syncRetryStatus = status;
+      var next = status === 401 || status === 403 ? "badpin" : status === 404 ? "noroom" : "offline";
+      var message = next === "badpin" ? "Acesso à sala recusado: confira o PIN e a função" : next === "noroom" ? "Sala indisponível; dados locais preservados" :
+        status === 429 ? "Servidor pediu uma pausa; tentaremos novamente automaticamente" : "Sem conexão com a sala: pedidos preservados neste aparelho";
+      networkOffline(next, message);
+      return false;
+    }).finally(function () {
+      if (syncRequest !== request) return;
+      syncRequest = null; syncBusy = false;
+      syncPaintDot(); syncSchedule(delay);
+    });
+    syncPaintDot();
+    return request.promise;
   }
   function syncStart() {
     if (!syncActive()) return;
-    if (syncTimer) clearInterval(syncTimer);
+    syncCancelRequest(); syncFailures = 0; syncRetryAt = 0; syncRetryStatus = 0;
     _notifReady = false;
-    state.sync.status = "connecting";
-    syncLastToast = "connecting";
-    notifReqPerm();
-    syncTick();
-    syncTimer = setInterval(syncTick, 3000);
+    state.sync.status = "connecting"; syncLastToast = "connecting";
+    notifReqPerm(); return syncTick();
   }
-  function syncStop() { if (syncTimer) { clearInterval(syncTimer); syncTimer = null; } _notifReady = false; if (state.sync) state.sync.status = "off"; }
-  document.addEventListener("visibilitychange", function () { if (document.hidden) { if (authReady && !isDemo()) appWasBackgrounded = true; return; } if (syncActive()) { syncTick(); wakeLockMaybe(); } updBeat(false); if (appWasBackgrounded) { appWasBackgrounded = false; appLockCheck(); } });
+  function syncStop() {
+    syncCancelRequest(); _notifReady = false;
+    if (state.sync) state.sync.status = "off";
+    syncPaintDot();
+  }
+  function syncKick(manual) {
+    if (!syncActive()) return Promise.resolve(false);
+    if (syncRetryStatus >= 400 && Date.now() < syncRetryAt) {
+      if (manual) toast("Nova tentativa em " + networkDuration(syncRetryAt - Date.now()));
+      syncSchedule(syncRetryAt - Date.now()); return Promise.resolve(false);
+    }
+    if (syncRequest && !syncBackgrounded && Date.now() - syncRequest.startedAt < SYNC_TIMEOUT_MS) return syncRequest.promise;
+    if (!manual && Date.now() - syncLastKick < 750) return Promise.resolve(false);
+    syncLastKick = Date.now(); syncBackgrounded = false;
+    syncCancelRequest(); syncFailures = 0; syncRetryAt = 0; syncRetryStatus = 0;
+    if (navigator.onLine !== false) state.sync.status = "connecting";
+    return syncTick();
+  }
+  function syncManual() {
+    if (!syncPaired()) { toast("Conecte este aparelho a uma sala"); return; }
+    if (syncBusy && !syncBackgrounded && Date.now() - syncPushedAt < SYNC_TIMEOUT_MS) { toast("Sincronização em andamento"); return; }
+    state.sync.enabled = true; persist(false);
+    if (navigator.onLine !== false && Date.now() >= syncRetryAt) toast("Sincronizando com a sala…");
+    return syncKick(true);
+  }
+  function networkDuration(ms) {
+    var seconds = Math.max(0, Math.round(ms / 1000));
+    if (seconds < 60) return seconds + "s";
+    var minutes = Math.floor(seconds / 60);
+    return minutes < 60 ? minutes + "min " + seconds % 60 + "s" : Math.floor(minutes / 60) + "h " + minutes % 60 + "min";
+  }
+  function networkEvent(status, detail, extra) {
+    state.sync.events = (state.sync.events || []).concat([Object.assign({ at: Date.now(), status: status, detail: detail }, extra || {})]).slice(-100);
+    persist(false);
+  }
+  function networkOffline(status, detail) {
+    var first = !state.sync.offlineSince, changed = state.sync.status !== status;
+    if (first) state.sync.offlineSince = Date.now();
+    state.sync.status = status; state.sync.lastError = detail;
+    if (first || changed) networkEvent(status, detail, { startedAt: state.sync.offlineSince });
+    if (syncLastToast !== status) { syncLastToast = status; toast(detail); }
+    syncPaintDot();
+  }
+  function networkOnline() {
+    var since = state.sync.offlineSince, wasOnline = state.sync.status === "online", now = Date.now();
+    state.sync.status = "online"; state.sync.lastSuccessAt = now;
+    state.sync.connectedAt = state.sync.connectedAt || now; state.sync.lastError = "";
+    state.sync.offlineSince = null; syncLastToast = "online";
+    if (since) {
+      var duration = Math.max(0, now - since);
+      networkEvent("online", "Conexão restabelecida após " + networkDuration(duration), { startedAt: since, endedAt: now, durationMs: duration });
+      toast("Conexão restabelecida · " + networkDuration(duration) + " offline · dados sincronizados");
+    } else if (!wasOnline) {
+      networkEvent("online", "Sincronização confirmada pelo servidor");
+      toast("Conexão bem-sucedida · sala " + state.sync.room + " · " + syncRoleLabel(state.sync.role));
+    }
+    return !!since || !wasOnline;
+  }
+  function networkLabel() {
+    if (!syncPaired()) return navigator.onLine === false ? "Offline" : "Online";
+    return { online: "Online", connecting: "Conectando…", off: "Pausado" }[state.sync.status] || "Offline";
+  }
+  function networkPaintDetails() {
+    var b = document.getElementById("networkdetails");
+    if (!b) return;
+    var last = state.sync.lastSuccessAt;
+    b.innerHTML = '<p>Estado: <b>' + networkLabel() + '</b></p><p>Última confirmação da sala: ' +
+      (last ? esc(new Date(last).toLocaleString("pt-BR")) : "Nenhuma") + '</p>' +
+      (state.sync.offlineSince ? '<p>Offline desde ' + esc(new Date(state.sync.offlineSince).toLocaleString("pt-BR")) + ' · ' + networkDuration(Date.now() - state.sync.offlineSince) + '</p>' : '') +
+      (state.sync.lastError ? '<p>' + esc(state.sync.lastError) + '</p>' : '') +
+      '<p>Seus pedidos continuam salvos neste aparelho. Ao reconectar, a sincronização é automática.</p>' +
+      ((state.sync.events || []).slice().reverse().map(function (e) {
+        return '<div class="cfg-row"><span>' + esc(new Date(e.at).toLocaleString("pt-BR")) + '<br>' + esc(e.detail) + '</span></div>';
+      }).join("") || '<p class="muted">Nenhuma ocorrência registrada.</p>');
+  }
+  function networkSheet() {
+    openSheet("Conexão e histórico", function (b) { b.innerHTML = '<div id="networkdetails"></div>'; }, function (f) {
+      var b = document.createElement("button"); b.id = "syncmanual"; b.className = "btn red block";
+      b.textContent = "Sincronizar Manualmente"; b.onclick = syncManual;
+      f.appendChild(b);
+    });
+    syncPaintDot();
+  }
+  function syncBackground() {
+    syncBackgrounded = true;
+    if (authReady && !isDemo()) appWasBackgrounded = true;
+  }
+  function syncResume(nativeActive) {
+    if (document.hidden && nativeActive !== true) return;
+    syncKick(false); syncPaintDot(); wakeLockMaybe();
+    authResumeSession(); updBeat(false);
+    if (appWasBackgrounded) { appWasBackgrounded = false; appLockCheck(); }
+  }
+  window.addEventListener("online", function () { syncKick(false); authResumeSession(); syncPaintDot(); });
+  window.addEventListener("offline", function () {
+    if (syncActive()) { syncCancelRequest(); networkOffline("offline", "Sem rede: pedidos preservados neste aparelho"); syncSchedule(SYNC_RETRY_MAX_MS); }
+    else syncPaintDot();
+  });
+  document.addEventListener("visibilitychange", function () { if (document.hidden) syncBackground(); else syncResume(); });
+  window.addEventListener("pageshow", syncResume);
+  window.addEventListener("pagehide", syncBackground);
+  document.addEventListener("freeze", syncBackground);
+  document.addEventListener("resume", syncResume);
   // mantém a tela acesa quando o aparelho é o painel da cozinha (pra não pausar o sync)
   var _wake = null;
   function wakeLockMaybe() {
@@ -1142,10 +1382,20 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   }
   function syncPaintDot() {
     var d = document.getElementById("syncdot");
-    if (!d) return;
-    var s = (state.sync && state.sync.status) || "off";
-    d.className = "syncdot s-" + s;
-    d.title = { connecting: "conectando à sala…", online: "sincronizado — " + syncRoleLabel(state.sync.role), offline: "sem conexão — tentando novamente", badpin: "acesso recusado — confira o PIN da função", noroom: "essa sala não existe mais — crie de novo", off: "sincronização desligada" }[s] || "";
+    var s = syncPaired() ? state.sync.status || "off" : navigator.onLine === false ? "offline" : "online";
+    if (d) d.className = "syncdot s-" + s;
+    var label = document.getElementById("networklabel"), button = document.getElementById("networkstatus");
+    if (label) label.textContent = networkLabel();
+    if (button) {
+      button.title = syncPaired() ? (state.sync.lastError || "Conexão com a sala · toque para sincronizar ou ver o histórico") : "Estado da rede do aparelho · conecte uma sala para sincronizar";
+      button.setAttribute("aria-label", "Conexão: " + networkLabel() + ". Abrir sincronização e histórico");
+      button.onclick = networkSheet;
+    }
+    ["syncmanual", "syncmanualcfg"].forEach(function (id) {
+      var b = document.getElementById(id); if (b) b.disabled = syncBusy || !syncPaired();
+    });
+    var status = document.getElementById("networkcfgstatus"); if (status) status.textContent = networkLabel();
+    networkPaintDetails();
   }
 
   // ---------- avisos de integração (garçom ⇄ cozinha ⇄ caixa) ----------
@@ -1166,7 +1416,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     (state.tables || []).forEach(function (t) {
       (t.items || []).forEach(function (it) {
         if (!it || !it.id || !it.kitchen) return;
-        if (it.done) done[it.id] = t.name; else kp[it.id] = t.name;
+        if (it.done) done[it.id] = { table: t.name, byId: t.byId || "" }; else kp[it.id] = t.name;
       });
       if (t.status === "aguardando_pgto") wait[t.id] = t.name;
     });
@@ -1197,10 +1447,13 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       }
     } catch (e) {}
   }
-  function notifPush(txt, tab) {
+  function notifPush(txt, tab, kind) {
     notifItems.push({ id: uid(), txt: txt, tab: tab, at: Date.now() });
     notifItems = notifItems.slice(-3);
-    beep("alert"); haptic([16, 60, 16]);
+    if (kind === "ready") {
+      beep("ready");
+      try { if (navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 500]); } catch (e) {}
+    } else { beep("alert"); haptic([16, 60, 16]); }
     notifSystem(txt);
     if (flow === "app" && !scrim) { notifPaint(); }
     setTimeout(function () {
@@ -1216,7 +1469,9 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       if (!before.kp[id] && !before.done[id]) { newKit[after.kp[id]] = (newKit[after.kp[id]] || 0) + 1; }
     });
     Object.keys(after.done).forEach(function (id) {
-      if (before.kp[id]) { becameReady++; readyTables[after.done[id]] = 1; }
+      var info = after.done[id] || {}, role = syncPaired() ? state.sync.role : "full";
+      var responsible = role !== "waiter" || !info.byId || info.byId === state.activeStaffId;
+      if (before.kp[id] && responsible) { becameReady++; readyTables[info.table || before.kp[id]] = 1; }
     });
     Object.keys(after.wait).forEach(function (id) { if (!before.wait[id]) newWait.push(after.wait[id]); });
     Object.keys(after.sales).forEach(function (id) {
@@ -1231,7 +1486,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     }
     if (want.ready && becameReady) {
       var rts = Object.keys(readyTables);
-      notifPush("Pronto na cozinha: " + rts.join(", "), rts.length === 1 ? "mesas" : "cozinha");
+      notifPush("Pronto na cozinha: " + rts.join(", "), rts.length === 1 ? "mesas" : "cozinha", "ready");
     }
     if (want.cashier && newWait.length) notifPush("Foi pro caixa: " + newWait.join(", "), "dia");
     if (want.paid && newPaid && paidInfo) notifPush("Conta fechada: " + paidInfo.table + " · " + money(paidInfo.total), "dia");
@@ -1262,8 +1517,6 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     if (r === "kitchen") return [["cozinha", "Cozinha", "pan"]];
     return null; // full -> usa as abas da função da equipe
   }
-  function syncIsKiosk() { return syncPaired() && state.sync.role === "kitchen"; }
-
   // QR de verdade (lib qrcode-generator embutida). Payload: PEDEAI:SALA:PIN
   function qrSvg(txt, px) {
     px = px || 180;
@@ -1278,8 +1531,6 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       return '<div class="paircode"><span>Sala/PIN</span><b class="mono" style="font-size:18px">' + esc(txt) + '</b></div>';
     }
   }
-  function syncPayload() { return "PEDEAI:" + state.sync.room + ":" + state.sync.pin; }
-
   function syncCreateRoom() {
     state.sync = { room: roomCode(), pin: pinCode(), mk: mkCode(), needCreate: true, role: "full", enabled: true, server: state.sync.server || "", cfgAt: Date.now(), tomb: {}, status: "off" };
     state.sync.rolePins = rolePins(state.sync.pin);
@@ -1491,6 +1742,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   function activeRole() { var s = activeStaff(); return s ? s.role : "admin"; }
   function tableById(id) { return state.tables.find(function (t) { return t.id === id; }); }
   function tableTotal(t) { return t.items.reduce(function (a, it) { return a + it.price * it.qty; }, 0); }
+  function tablePaid(t) { return (t.payments || []).reduce(function (a, p) { return a + (+p.amount || 0); }, 0); }
   function tableKitchenPending(t) { return t.items.reduce(function (a, it) { return a + (it.kitchen && !it.done ? it.qty : 0); }, 0); }
   function dayTotal() { return state.day.sales.reduce(function (a, x) { return a + x.total; }, 0); }
   function canClose() {
@@ -1541,7 +1793,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     closeSheet(true);
     applyTheme();
     if (appLocked) return renderAppLock();
-    if (!authReady && flow !== "welcome" && !isDemo()) return renderAuthGate("choose");
+    if (!authReady && flow !== "welcome" && !isDemo()) return authToken && authSessionUnavailable ? renderSessionWaiting() : renderAuthGate("choose");
     if (flow === "welcome") return renderWelcome();
     if (isDemo() && flow === "tutorial") return renderTutorial();
     if (isDemo() && flow === "app") return renderApp();
@@ -1638,7 +1890,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       try { A.addListener("backButton", function (ev) {
         goBack();
       }); } catch (e) {}
-      try { A.addListener("appStateChange", function (ev) { if (!ev || ev.isActive === false) { if (authReady && !isDemo()) appWasBackgrounded = true; } else if (appWasBackgrounded) { appWasBackgrounded = false; appLockCheck(); } }); } catch (e) {}
+      try { A.addListener("appStateChange", function (ev) { if (!ev || ev.isActive === false) syncBackground(); else syncResume(true); }); } catch (e) {}
     }
   })();
 
@@ -1887,7 +2139,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     var st = activeStaff(), b = state.biz;
     var onHome = current === tabs[0][0] && !openTableId;
     var showBack = !kitchen;
-    var dot = syncPaired() ? '<span class="syncdot s-' + ((state.sync && state.sync.status) || "off") + '" id="syncdot"></span>' : '';
+    var dot = '<button type="button" class="network-status" id="networkstatus"><span class="syncdot" id="syncdot" aria-hidden="true"></span><span id="networklabel" role="status" aria-live="polite">' + networkLabel() + '</span></button>';
     appEl.innerHTML =
       '<div class="topbar"><div class="topbar-in">' +
         (showBack ? '<button class="backchip' + (onHome ? ' exit' : '') + '" id="topback" title="' + (onHome ? "Sair" : "Voltar") + '">' + ic("back", 20) + (onHome && (isDemo() || syncPaired()) ? '<span class="bl">sair</span>' : '') + '</button>' : '') +
@@ -2008,6 +2260,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       (t.note ? '<div class="cmd-note">' + ic("note") + '<span>' + esc(t.note) + '</span></div>' : '') +
       (t.items.length ? rows : '<div style="padding:26px 0;text-align:center;color:var(--paper-faint);font-weight:600">Comanda vazia</div>') +
       '<div class="comanda-tot"><span class="lbl">Total</span><span class="val" id="ctot">' + money(tableTotal(t)) + '</span></div>' +
+      (tablePaid(t) ? '<div class="recap-row"><span>Pagamentos parciais</span><b>- ' + money(tablePaid(t)) + '</b></div>' : '') +
       '</div>';
     cmd.querySelectorAll(".stepper").forEach(function (st) {
       var it = t.items.find(function (x) { return x.id === st.dataset.id; });
@@ -2150,30 +2403,37 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   }
 
   function closeBill(t) {
-    var svcDefault = !!(state.settings && state.settings.serviceDefault);
-    var people = t.people || 1, service = svcDefault, method = null, received = "";
-    var disc = { on: false, type: "pct", val: 0 };
-    var pct = state.settings.servicePct || 10;
+    var people = t.people || 1, service = null, method = null, received = "", partial = false, partialAmount = 0;
+    var savedBilling = t.billing || {}, otherName = savedBilling.otherName || "Couvert", otherValue = +savedBilling.otherValue || 0;
+    var paidBefore = tablePaid(t);
+    if (paidBefore) service = !!savedBilling.service;
+    var disc = { on: +savedBilling.discount > 0, type: "rs", val: +savedBilling.discount || 0 };
+    var pct = paidBefore && typeof savedBilling.servicePct === "number" ? savedBilling.servicePct : (typeof state.settings.servicePct === "number" ? state.settings.servicePct : 10);
     openSheet("Fechar conta · " + t.name, function (body) {
       var kpend = tableKitchenPending(t);
       body.innerHTML = '<div id="rc"></div>' +
         (kpend ? '<div class="miniline">' + ic("pan", 13) + ' ' + kpend + ' item(ns) ainda no preparo</div>' : '') +
         '<div class="fc-block">' +
-          '<div class="divide"><span>Taxa de serviço ' + pct + '%</span><button class="switch' + (service ? " on" : "") + '" id="sw"></button></div>' +
+          '<div><b>Confirmar taxa de serviço (' + pct + '%)</b><div class="seg" id="serviceConfirm"><button data-v="yes" class="' + (service === true ? "on" : "") + '"' + (paidBefore ? " disabled" : "") + '>Adicionar</button><button data-v="no" class="' + (service === false ? "on" : "") + '"' + (paidBefore ? " disabled" : "") + '>Não adicionar</button></div></div>' +
+          '<label class="field"><span>Outro serviço</span><input id="otherName" maxlength="40" value="' + esc(otherName) + '" placeholder="Ex.: Couvert"' + (paidBefore ? " disabled" : "") + '></label>' +
+          '<label class="field"><span>Valor do outro serviço</span><input id="otherValue" inputmode="decimal" value="' + (otherValue ? String(otherValue).replace(".", ",") : "") + '" placeholder="R$ 0,00"' + (paidBefore ? " disabled" : "") + '></label>' +
           '<div class="divide"><span>Dividir por</span><div class="stepper dark"><button id="pm">' + ic("minus", 18) + '</button><span class="q" id="pq">' + people + '</span><button id="pp">' + ic("plus", 18) + '</button></div></div>' +
-          (canDiscount() ? '<button class="fc-line" id="discBtn"><span>Desconto</span><span class="right muted" id="discLbl">nenhum</span></button>' : '') +
+          (canDiscount() && !paidBefore ? '<button class="fc-line" id="discBtn"><span>Desconto</span><span class="right muted" id="discLbl">nenhum</span></button>' : '') +
         '</div>' +
-        (canDiscount() ? '<div class="disc-panel" id="discPanel" hidden><div class="seg" id="dtype"><button data-t="pct" class="on">%</button><button data-t="rs">R$</button></div>' +
+        (canDiscount() && !paidBefore ? '<div class="disc-panel" id="discPanel" hidden><div class="seg" id="dtype"><button data-t="pct" class="on">%</button><button data-t="rs">R$</button></div>' +
           '<div class="drow"><input id="dval" inputmode="decimal" placeholder="0"><button class="btn red slab" id="dapply" style="min-height:46px;padding:0 18px">OK</button></div></div>' : '') +
         '<div style="font-size:12px;font-weight:800;color:var(--bone-dim);text-transform:uppercase;letter-spacing:.05em;margin:6px 0 8px">Como vai pagar</div>' +
         '<div class="seg" id="payseg">' + PAY_METHODS.map(function (m) { return '<button data-m="' + m[0] + '">' + m[0] + '</button>'; }).join("") + '</div>' +
+        '<div class="divide"><span>Pagamento parcial<br><small class="muted">mantém a comanda aberta</small></span><button class="switch" id="partialSw"></button></div>' +
+        '<label class="field" id="partialWrap" hidden><span>Valor pago agora</span><input id="partialValue" inputmode="decimal" placeholder="R$ 0,00"></label>' +
         '<div id="cashwrap" hidden style="margin-top:12px"><label class="field" style="margin:0"><span>Valor recebido</span><input id="rcv" inputmode="decimal" placeholder="R$"></label><div class="troco" id="troco" hidden></div></div>';
       var rc = body.querySelector("#rc");
       function subtotal() { return tableTotal(t); }
       function discVal(sub) { if (!disc.on || !disc.val) return 0; return disc.type === "pct" ? sub * Math.min(100, disc.val) / 100 : Math.min(disc.val, sub); }
       function calc() {
-        var sub = subtotal(), d = discVal(sub), base = sub - d, svc = service ? base * pct / 100 : 0, total = base + svc;
-        return { sub: sub, d: d, base: base, svc: svc, total: total };
+        var sub = subtotal(), d = discVal(sub), base = sub - d, svc = service === true ? base * pct / 100 : 0;
+        var extra = otherName.trim() && otherValue > 0 ? otherValue : 0, total = base + svc + extra, balance = Math.max(0, total - paidBefore);
+        return { sub: sub, d: d, base: base, svc: svc, extra: extra, total: total, balance: balance };
       }
       function paint() {
         var c = calc(), h = "";
@@ -2181,19 +2441,26 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
         h += '<div class="recap-row"><span>Subtotal</span><span class="mono">' + money(c.sub) + '</span></div>';
         if (c.d) h += '<div class="recap-row disc"><span>Desconto ' + (disc.type === "pct" ? disc.val + "%" : "") + '</span><span class="mono">- ' + money(c.d) + '</span></div>';
         if (c.svc) h += '<div class="recap-row"><span>Serviço ' + pct + '%</span><span class="mono">' + money(c.svc) + '</span></div>';
+        if (c.extra) h += '<div class="recap-row"><span>' + esc(otherName) + '</span><span class="mono">' + money(c.extra) + '</span></div>';
+        if (paidBefore) h += '<div class="recap-row disc"><span>Já pago</span><span class="mono">- ' + money(paidBefore) + '</span></div>';
         h += '<div class="recap-row grand"><span>Total</span><b>' + money(c.total) + '</b></div>';
+        if (paidBefore) h += '<div class="recap-row grand"><span>Saldo</span><b>' + money(c.balance) + '</b></div>';
         if (people > 1) h += '<div class="recap-row"><span>Por pessoa (' + people + ')</span><b class="mono">' + money(c.total / people) + '</b></div>';
         rc.innerHTML = h;
         var dl = body.querySelector("#discLbl");
         if (dl) dl.textContent = disc.on && disc.val ? (disc.type === "pct" ? disc.val + "%" : money(disc.val)) : "nenhum";
         var troco = body.querySelector("#troco");
         if (method === "Dinheiro") {
-          var r = parseBR(received), diff = r - c.total;
+          var due = partial ? partialAmount : c.balance, r = parseBR(received), diff = r - due;
           if (r > 0) { troco.hidden = false; troco.className = "troco" + (diff < 0 ? " neg" : ""); troco.innerHTML = '<span>' + (diff < 0 ? "Falta" : "Troco") + '</span><b>' + money(Math.abs(diff)) + '</b>'; }
           else troco.hidden = true;
         } else if (troco) troco.hidden = true;
       }
-      body.querySelector("#sw").onclick = function () { service = !service; this.classList.toggle("on", service); haptic(5); paint(); };
+      body.querySelectorAll("#serviceConfirm button").forEach(function (bt) { bt.onclick = function () { service = bt.dataset.v === "yes"; body.querySelectorAll("#serviceConfirm button").forEach(function (x) { x.classList.toggle("on", x === bt); }); haptic(5); paint(); }; });
+      body.querySelector("#otherName").addEventListener("input", function () { otherName = this.value.slice(0, 40); paint(); });
+      body.querySelector("#otherValue").addEventListener("input", function () { otherValue = parseBR(this.value); paint(); });
+      body.querySelector("#partialSw").onclick = function () { partial = !partial; this.classList.toggle("on", partial); body.querySelector("#partialWrap").hidden = !partial; paint(); };
+      body.querySelector("#partialValue").addEventListener("input", function () { partialAmount = parseBR(this.value); paint(); });
       body.querySelector("#pm").onclick = function () { people = Math.max(1, people - 1); body.querySelector("#pq").textContent = people; paint(); };
       body.querySelector("#pp").onclick = function () { people = Math.min(40, people + 1); body.querySelector("#pq").textContent = people; paint(); };
       var db = body.querySelector("#discBtn");
@@ -2221,16 +2488,29 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     }, function (f) {
       var ok = document.createElement("button"); ok.className = "btn red block lg slab"; ok.textContent = "Confirmar pagamento";
       ok.onclick = function () {
+        if (service === null) { toast("Confirme se deseja adicionar a taxa de serviço"); return; }
+        if (!method) { toast("Selecione a forma de pagamento"); return; }
         var sub = tableTotal(t);
         var d = disc.on && disc.val ? (disc.type === "pct" ? sub * Math.min(100, disc.val) / 100 : Math.min(disc.val, sub)) : 0;
-        var base = sub - d, svc = service ? base * pct / 100 : 0, total = base + svc;
+        var base = sub - d, svc = service ? base * pct / 100 : 0, extra = otherName.trim() && otherValue > 0 ? otherValue : 0;
+        var total = base + svc + extra, balance = Math.max(0, total - paidBefore), amount = partial ? partialAmount : balance;
+        if (partial && (!(amount > 0) || amount >= balance)) { toast("O valor parcial deve ser maior que zero e menor que o saldo"); return; }
         var pay = null;
         if (method) {
-          var r = method === "Dinheiro" ? parseBR(received) : 0;
-          pay = { method: method, received: r, change: r > 0 ? Math.max(0, r - total) : 0 };
+          var r = method === "Dinheiro" ? parseBR(received) : amount;
+          if (method === "Dinheiro" && r < amount) { toast("Valor recebido insuficiente"); return; }
+          pay = { method: method, received: r, change: r > 0 ? Math.max(0, r - amount) : 0 };
+        }
+        var payment = { id: uid(), amount: amount, method: method, at: Date.now(), byId: state.activeStaffId };
+        if (partial) {
+          t.payments = (t.payments || []).concat([payment]);
+          t.billing = { service: service, servicePct: pct, otherName: otherName.trim(), otherValue: extra, discount: d, discountLabel: d ? (disc.type === "pct" ? disc.val + "%" : money(disc.val)) : "" };
+          touchTable(t); persist(); closeSheet(); haptic([10, 40, 20]);
+          openTableId = t.id; renderApp(); toast("Pagamento parcial registrado · saldo " + money(balance - amount));
+          return;
         }
         var sale = { id: uid(), table: t.name, items: t.items.map(function (it) { return { name: it.name, price: it.price, qty: it.qty, note: it.note || "" }; }),
-          subtotal: sub, discount: d, discountLabel: d ? (disc.type === "pct" ? disc.val + "%" : money(disc.val)) : "", service: svc, total: total, people: people, pay: pay,
+          subtotal: sub, discount: d, discountLabel: d ? (disc.type === "pct" ? disc.val + "%" : money(disc.val)) : "", service: svc, otherService: extra ? { name: otherName.trim(), value: extra } : null, previousPaid: paidBefore, paidNow: amount, payments: (t.payments || []).concat([payment]), total: total, people: people, pay: pay,
           byId: t.byId, closedById: state.activeStaffId, closedAt: Date.now() };
         state.day.sales.push(sale);
         tombTable(t.id);
@@ -2478,11 +2758,14 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       if (o.subtotal != null && (o.discount || o.service)) L.push(row("Subtotal", money(o.subtotal)));
       if (o.discount) L.push(row("Desconto" + (o.discountLabel ? " (" + o.discountLabel + ")" : ""), "-" + money(o.discount)));
       if (o.service) L.push(row("Serviço", money(o.service)));
+      if (o.otherService && o.otherService.value) L.push(row(o.otherService.name || "Outro serviço", money(o.otherService.value)));
+      if (o.previousPaid) L.push(row("Pagamentos anteriores", "-" + money(o.previousPaid)));
       L.push(row("TOTAL", money(o.total)));
       if (o.people > 1) L.push(row("Por pessoa (" + o.people + ")", money(o.total / o.people)));
       if (o.pay && o.pay.method) L.push(row("Pago em", o.pay.method));
       if (o.pay && o.pay.received) { L.push(row("Recebido", money(o.pay.received))); L.push(row("Troco", money(o.pay.change || 0))); }
     }
+    if (o.message || o.note) { L.push(""); L.push("RECADO"); L.push(String(o.message || o.note).slice(0, 300)); }
     L.push("");
     L.push(center("PedeAí · comanda digital", w));
     L.push(center(dmy(Date.now()), w));
@@ -2528,18 +2811,19 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     if (m === "compartilhar") return shareText(txt);
     printBrowser(txt); // "navegador" e fallback
   }
-  function orderFromSale(s) { return { table: s.table, items: s.items, subtotal: s.subtotal, discount: s.discount, discountLabel: s.discountLabel, service: s.service, total: s.total, people: s.people, pay: s.pay, byId: s.byId, closedAt: s.closedAt }; }
+  function orderFromSale(s) { return { table: s.table, items: s.items, subtotal: s.subtotal, discount: s.discount, discountLabel: s.discountLabel, service: s.service, otherService: s.otherService, previousPaid: s.previousPaid, total: s.total, people: s.people, pay: s.pay, byId: s.byId, closedAt: s.closedAt, message: s.message }; }
   function receiptSheet(o, kind, auto) {
     var txt = receiptLines(o, kind);
     openSheet("Comprovante · " + (o.table || ""), function (b) {
-      b.innerHTML = '<div class="receipt-prev">' + esc(txt) + '</div>';
+      b.innerHTML = '<label class="field"><span>Recado no comprovante</span><textarea id="receiptMessage" maxlength="300" placeholder="Ex.: Obrigado! Volte sempre.">' + esc(o.message || o.note || "") + '</textarea></label><div class="receipt-prev" id="receiptPreview">' + esc(txt) + '</div>';
+      b.querySelector("#receiptMessage").addEventListener("input", function () { o.message = this.value.slice(0, 300); b.querySelector("#receiptPreview").textContent = receiptLines(o, kind); });
     }, function (f) {
       var pr = document.createElement("button"); pr.className = "btn red block lg slab";
       pr.innerHTML = ic("bill", 18) + " Imprimir";
       pr.onclick = function () { doPrint(o, kind); };
       f.appendChild(pr);
       var sh = document.createElement("button"); sh.className = "btn ghost block"; sh.style.marginTop = "8px";
-      sh.innerHTML = ic("share", 18) + " Compartilhar"; sh.onclick = function () { shareText(txt); };
+      sh.innerHTML = ic("share", 18) + " Compartilhar"; sh.onclick = function () { shareText(receiptLines(o, kind)); };
       f.appendChild(sh);
     });
     if (auto && prn().mode !== "off" && prn().mode !== "compartilhar") setTimeout(function () { doPrint(o, kind); }, 350);
@@ -2590,17 +2874,21 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     s1.innerHTML = '<h4>Estabelecimento</h4>' +
       '<div class="cfg-row">Nome<span class="right muted">' + esc(state.biz.name) + '</span></div>' +
       '<div class="cfg-row">Tipo<span class="right muted">' + esc((TYPES.find(function (t) { return t.id === state.biz.type; }) || {}).label || "") + '</span></div>' +
-      '<div class="cfg-row">Taxa de serviço<span class="right muted">' + (state.settings.servicePct || 10) + '% · ' + (state.settings.serviceDefault ? "liga por padrão" : "desligada por padrão") + '</span></div>';
+      '<div class="cfg-row">Taxa de serviço<span class="right muted">' + ((typeof state.settings.servicePct === "number" ? state.settings.servicePct : 10)) + '% · ' + (state.settings.serviceDefault ? "liga por padrão" : "desligada por padrão") + '</span></div>';
     var e = document.createElement("button"); e.className = "cfg-row act"; e.textContent = "Editar dados"; e.onclick = editBiz; s1.appendChild(e);
     v.appendChild(s1);
 
-    var s2 = document.createElement("div"); s2.className = "cfg-sec"; s2.innerHTML = '<h4>Equipe</h4>';
+    var s2 = document.createElement("div"); s2.className = "cfg-sec"; s2.innerHTML = '<h4>Colaboradores e permissões</h4><p class="muted">Cadastre os atendentes e defina suas funções. Para usar outro celular, convide o aparelho para a sala abaixo.</p>';
     state.staff.forEach(function (st) {
       var r = document.createElement("button"); r.className = "cfg-row";
       r.innerHTML = '<span class="cfg-av">' + esc(initials(st.name)) + '</span><span>' + esc(st.name) + '<br><span class="sub">' + (ROLE_LABEL[st.role] || "") + (st.pin ? " · PIN" : "") + '</span></span>';
       r.onclick = function () { editStaff(st); }; s2.appendChild(r);
     });
-    var addS = document.createElement("button"); addS.className = "cfg-row act"; addS.innerHTML = ic("plus", 17) + " Adicionar colaborador"; addS.onclick = function () { editStaff(null); }; s2.appendChild(addS);
+    var addS = document.createElement("button"); addS.className = "cfg-row collab-add"; addS.innerHTML = ic("plus", 17) + " Adicionar colaborador"; addS.onclick = function () { editStaff(null); }; s2.appendChild(addS);
+    var invite = document.createElement("button"); invite.className = "btn red block";
+    invite.textContent = "Convidar celular de colaborador";
+    invite.onclick = function () { if (syncPaired()) syncCodeSheet(false); else syncCreateRoom(); };
+    s2.appendChild(invite);
     v.appendChild(s2);
 
     var s3 = document.createElement("div"); s3.className = "cfg-sec"; s3.innerHTML = '<h4>Caixa</h4>';
@@ -2703,7 +2991,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       ssec.insertAdjacentHTML("beforeend",
         '<div class="cfg-row">Sala<span class="right muted mono">' + esc(state.sync.room) + '</span></div>' +
         '<div class="cfg-row">Papel<span class="right muted">' + esc(syncRoleLabel(state.sync.role)) + '</span></div>' +
-        '<div class="cfg-row">Situação<span class="right muted">' + stt + '</span></div>' +
+        '<div class="cfg-row">Situação<span class="right muted" id="networkcfgstatus">' + stt + '</span></div>' +
         (state.sync.status === "online" ? '<div class="cfg-row">Pareados agora<span class="right muted">' + ((state.sync.peers || syncPeers).length || 1) + ' aparelho(s)</span></div>' : ''));
       var sc1 = document.createElement("button"); sc1.className = "cfg-row act"; sc1.innerHTML = ic("share", 17) + " Mostrar QR / código pra parear";
       sc1.onclick = function () { syncCodeSheet(false); }; ssec.appendChild(sc1);
@@ -2726,6 +3014,14 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       var sc4 = document.createElement("button"); sc4.className = "cfg-row danger"; sc4.style.color = "#f0897b"; sc4.textContent = "Desconectar";
       sc4.onclick = syncDisconnect; ssec.appendChild(sc4);
     }
+    if (syncPaired()) {
+      var manual = document.createElement("button"); manual.id = "syncmanualcfg"; manual.className = "btn bone block";
+      manual.textContent = "Sincronizar Manualmente"; manual.onclick = syncManual; manual.disabled = syncBusy;
+      ssec.appendChild(manual);
+    }
+    var reconnect = document.createElement("button"); reconnect.className = "btn ghost block";
+    reconnect.textContent = "Histórico de conexão"; reconnect.onclick = networkSheet;
+    ssec.appendChild(reconnect);
     v.appendChild(ssec);
 
     var ls = licState();
@@ -2795,7 +3091,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
         '<div style="flex:1"><div style="font-size:12px;font-weight:700" class="muted">LOGO</div><label class="btn ghost" style="min-height:36px;margin-top:6px;font-size:13px">Trocar<input id="lg" type="file" accept="image/*" hidden></label></div></div>' +
         '<label class="field"><span>Nome</span><input id="bn" value="' + esc(state.biz.name) + '"></label>' +
         '<label class="field"><span>Tipo</span><select id="bt">' + TYPES.map(function (t) { return '<option value="' + t.id + '"' + (t.id === state.biz.type ? " selected" : "") + '>' + t.label + '</option>'; }).join("") + '</select></label>' +
-        '<label class="field"><span>Taxa de serviço (%)</span><input id="bsvc" inputmode="numeric" value="' + (state.settings.servicePct || 10) + '"></label>' +
+        '<label class="field"><span>Taxa de serviço (%)</span><input id="bsvc" inputmode="numeric" value="' + ((typeof state.settings.servicePct === "number" ? state.settings.servicePct : 10)) + '"></label>' +
         '<div class="divide"><span>Ligar serviço por padrão ao fechar</span><button class="switch' + (state.settings.serviceDefault ? " on" : "") + '" id="bsd"></button></div>';
       b.querySelector("#lg").onchange = function (e) { var f = e.target.files[0]; if (!f) return; var rd = new FileReader(); rd.onload = function () { state.biz.logo = rd.result; persist(); closeSheet(); editBiz(); }; rd.readAsDataURL(f); };
       b.querySelector("#bsd").onclick = function () { this.classList.toggle("on"); };
@@ -3187,10 +3483,14 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   if (!window.Capacitor && "serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
     window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js?v=auto-7").catch(function () {}); });
   } else if (window.Capacitor && "serviceWorker" in navigator) {
-    // limpa qualquer SW/cache de versões antigas do APK
+    // Desativa apenas o SW deste app no APK, preservando os caches existentes.
     try {
-      navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { r.unregister(); }); });
-      if (window.caches) caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); });
+      navigator.serviceWorker.getRegistrations().then(function (rs) {
+        rs.forEach(function (r) {
+          var worker = r.active || r.waiting || r.installing;
+          if (worker && worker.scriptURL.split("?")[0] === new URL("sw.js", location.href).href.split("?")[0]) r.unregister().catch(function () {});
+        });
+      }).catch(function () {});
     } catch (e) {}
   }
 

@@ -531,7 +531,7 @@
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.13.8";
+  var KEY = "pedeai.v2", VERSION = "4.13.9";
   var VERSION_CODE = 62;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -801,6 +801,16 @@
     tut = { step: 1, choppQty: 0 }; persist(false);
     return true;
   }
+  function promoteRestoredAccountState(saved) {
+    if (!saved || !saved.ui || !saved.ui.demo) return false;
+    // Backups antigos podem ter sido salvos enquanto o aparelho ainda estava
+    // na demonstração. Após autenticar, preservamos os dados e removemos
+    // exclusivamente as marcas que ativam a interface de demonstração.
+    saved.ui = Object.assign({}, saved.ui);
+    delete saved.ui.demo; delete saved.ui.demoStart; delete saved.ui.demoActs;
+    saved.setupOwn = !!saved.setup;
+    return true;
+  }
   async function authRestore() {
     var discardedDemo = discardDemoAfterAuth();
     if (state.setup && !discardedDemo) return;
@@ -808,7 +818,8 @@
       var j = await authApi("/restore");
       if (!j.blob) return;
       var saved = JSON.parse(j.blob);
-      if (saved && saved.setup !== undefined && (!state.cloudAuthAt || !j.updatedAt || j.updatedAt > state.cloudAuthAt)) {
+      if (saved && saved.setup !== undefined && (discardedDemo || !state.cloudAuthAt || !j.updatedAt || j.updatedAt > state.cloudAuthAt)) {
+        promoteRestoredAccountState(saved);
         state = saved; state.cloudAuthAt = j.updatedAt || new Date().toISOString(); migrate(); persist(false); toast("Dados restaurados da sua conta");
         if (discardedDemo) {
           if (state.setup) flow = "app";

@@ -531,7 +531,8 @@
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.13.2";
+  var KEY = "pedeai.v2", VERSION = "4.13.3";
+  var VERSION_CODE = 59;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- logger de erros (silencioso -> backend -> erros_pedeai.log) ----------
@@ -2129,6 +2130,7 @@
   function renderAll() {
     closeSheet(true);
     applyTheme();
+    if (forceUpdateGate) return renderForcedUpdate();   // bloqueio absoluto de versão obsoleta
     if (appLocked) return renderAppLock();
     if (!authReady && flow !== "welcome" && !isDemo()) {
       // Dispositivo já configurado com sessão salva: NUNCA sai da comanda por falha
@@ -2155,6 +2157,7 @@
   var exitArmed = 0;
   function armBack() { try { history.pushState({ pa: 1 }, ""); } catch (e) {} }
   function goBack() {
+    if (forceUpdateGate) { armBack(); return; }   // não dá pra escapar do bloqueio de atualização
     if (scrim) { closeSheet(); return; }
     if (flow === "app" && storeLinked() && state.store.role === "kitchen") { tryExit(); return; }
     if (flow === "app" && openTableId) { openTableId = null; renderApp(); return; }
@@ -3907,11 +3910,92 @@
   window.addEventListener("online", function () { updBeat(true); });
   setInterval(function () { updBeat(false); }, UPD_THROTTLE);
 
+  // ---------- FORCED UPDATE (bloqueio agressivo de versão obsoleta) ----------
+  // Fonte da verdade em produção: pedeai.deckcorp.com.br/version.json (mesmo
+  // deploy do app; imune ao cache do SW porque .json não é interceptado e está
+  // fora do escopo /app/). Fallback: painel /api/pedeai/version. Se a versão
+  // local for MAIS ANTIGA que a de produção -> tela cheia intransponível +
+  // limpeza de cache + reload (ou download do APK se o versionCode mudou).
+  var PROD_VERSION_URL = "https://pedeai.deckcorp.com.br/version.json";
+  var forceUpdateGate = false, forceUpdateInfo = null, _forceUpdChecking = false;
+  function checkForcedUpdate() {
+    if (forceUpdateGate || _forceUpdChecking || navigator.onLine === false) return;
+    _forceUpdChecking = true;
+    var bust = "?t=" + Date.now();
+    fetch(PROD_VERSION_URL + bust, { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error("no version.json"); return r.json(); })
+      .catch(function () { return fetch(AUTH_API + "/version" + bust, { cache: "no-store" }).then(function (r) { return r.json(); }); })
+      .then(function (j) {
+        if (!j || !j.version) return;
+        var need = j.min || j.version;
+        if (verCmp(VERSION, need) < 0) {
+          forceUpdateInfo = j;
+          forceUpdateGate = true;
+          try { reportError("forced-update", { message: "versao obsoleta: local " + VERSION + " < prod " + need }); } catch (e) {}
+          renderForcedUpdate();
+        }
+      })
+      .catch(function () {})
+      .then(function () { _forceUpdChecking = false; });
+  }
+  function renderForcedUpdate() {
+    var j = forceUpdateInfo || {};
+    var appEl2 = document.getElementById("app");
+    appEl2.innerHTML =
+      '<div class="ob ob-red" style="position:fixed;inset:0;z-index:9999"><div class="awning"></div><div class="ob-pad">' +
+        '<div class="ob-top"></div><div class="ob-mid">' + mark(52) +
+          '<h2 class="anton" style="font-size:30px;margin-top:18px;line-height:1.06">Nova versão disponível!</h2>' +
+          '<p class="ob-tag">É necessário atualizar para continuar usando o PedeAí.' +
+            (j.notice ? '<br>' + esc(j.notice) : '') +
+            '<br><span style="opacity:.8;font-size:13px">Você tem a v' + esc(VERSION) + ' · a atual é a v' + esc(j.version || "?") + '</span></p>' +
+        '</div>' +
+        '<div class="ob-actions">' +
+          '<button class="btn bone block xl slab" id="fupdgo">Atualizar Agora</button>' +
+          '<div class="credit" style="margin-top:12px;color:#fff">Seus dados neste aparelho estão salvos e continuam aqui depois de atualizar.</div>' +
+        '</div>' +
+      '</div></div>';
+    var b = document.getElementById("fupdgo");
+    b.onclick = function () { haptic(12); b.disabled = true; b.textContent = "Atualizando…"; doForcedUpdate(); };
+    try { armBack(); } catch (e) {}
+  }
+  function doForcedUpdate() {
+    var j = forceUpdateInfo || {};
+    var apkUrl = j.apkUrl || "https://pedeai.deckcorp.com.br/pedeai-latest.apk";
+    var needApk = !!window.Capacitor && j.versionCode && VERSION_CODE < j.versionCode;
+    var wipe = Promise.resolve();
+    try {
+      if (window.caches && caches.keys) {
+        wipe = caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); });
+      }
+    } catch (e) {}
+    wipe.catch(function () {}).then(function () {
+      try {
+        if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+          return navigator.serviceWorker.getRegistrations().then(function (rs) {
+            return Promise.all(rs.map(function (r) { try { return r.unregister(); } catch (e) { return null; } }));
+          });
+        }
+      } catch (e) {}
+    }).catch(function () {}).then(function () {
+      if (needApk) {
+        try { if (window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.Browser) { Capacitor.Plugins.Browser.open({ url: apkUrl }); return; } } catch (e) {}
+        try { window.open(apkUrl, "_blank"); return; } catch (e) {}
+        try { location.href = apkUrl; return; } catch (e) {}
+      }
+      // PWA/web: recarrega do zero, com bust de URL pra furar qualquer cache.
+      try { location.replace(location.pathname + "?v=" + encodeURIComponent(j.version || VERSION) + "&_=" + Date.now()); return; } catch (e) {}
+      try { location.reload(true); } catch (e) { location.reload(); }
+    });
+  }
+  window.addEventListener("online", checkForcedUpdate);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) checkForcedUpdate(); });
+  setInterval(checkForcedUpdate, 30 * 60 * 1000);   // + a cada 30 min enquanto o app fica aberto
+
   // ---------- service worker ----------
   // Só no modo PWA (site). Dentro do APK (Capacitor) os arquivos já vêm no pacote —
   // um SW aqui só arriscaria servir versão velha depois de atualizar o app.
   if (!window.Capacitor && "serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
-    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js?v=auto-7").catch(function (e) { reportError("serviceworker", { message: "registro do SW falhou: " + (e && e.message || e), stack: e && e.stack }); }); });
+    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js?v=auto-8").catch(function (e) { reportError("serviceworker", { message: "registro do SW falhou: " + (e && e.message || e), stack: e && e.stack }); }); });
   } else if (window.Capacitor && "serviceWorker" in navigator) {
     // Desativa apenas o SW deste app no APK, preservando os caches existentes.
     try {
@@ -3940,6 +4024,8 @@
     var tok = _pendingInvite; _pendingInvite = "";
     inviteSheet(tok);
   }
+
+  checkForcedUpdate();   // 1ª coisa no boot: versão obsoleta -> bloqueio total antes de tudo
 
   authInit().then(function (ok) {
     if (!ok) { licInit().then(function () { updBeat(); renderAll(); if (_pendingInvite) toast("Entre na sua conta para aceitar o convite"); }); return; }

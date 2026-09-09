@@ -531,8 +531,8 @@
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.13.5";
-  var VERSION_CODE = 61;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
+  var KEY = "pedeai.v2", VERSION = "4.13.6";
+  var VERSION_CODE = 62;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- logger de erros (silencioso -> backend -> erros_pedeai.log) ----------
@@ -3276,9 +3276,10 @@
     L.push(rule);
     if (kind === "comanda") {
       // Comanda não é a conta final: imprime uma PRÉVIA de valores pra conferência.
-      var hasTax = o.service || (o.otherService && o.otherService.value);
+      var hasTax = o.service || o.couvert || (o.otherService && o.otherService.value);
       if (o.subtotal != null) L.push(row("Subtotal", money(o.subtotal)));
       if (o.service) L.push(row("Taxa de servico" + (o.servicePct ? " " + o.servicePct + "%" : ""), money(o.service)));
+      if (o.couvert) L.push(row("Couvert", money(o.couvert)));
       if (o.otherService && o.otherService.value) L.push(row(o.otherService.name || "Outros servicos", money(o.otherService.value)));
       if (hasTax) {
         L.push(row("Total estimado", money(o.total)));
@@ -3345,8 +3346,25 @@
   function receiptSheet(o, kind, auto) {
     var txt = receiptLines(o, kind);
     openSheet("Comprovante · " + (o.table || ""), function (b) {
-      b.innerHTML = '<label class="field"><span>Recado no comprovante</span><textarea id="receiptMessage" maxlength="300" placeholder="Ex.: Obrigado! Volte sempre.">' + esc(o.message || o.note || "") + '</textarea></label><div class="receipt-prev" id="receiptPreview">' + esc(txt) + '</div>';
-      b.querySelector("#receiptMessage").addEventListener("input", function () { o.message = this.value.slice(0, 300); b.querySelector("#receiptPreview").textContent = receiptLines(o, kind); });
+      var fields = kind === "comanda" ? '<div class="cfg-row" style="display:block"><b>Valores opcionais para esta comanda</b><div class="tools" style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+        '<label class="field"><span>Taxa de serviço (%)</span><input id="receiptServicePct" inputmode="decimal" value="' + (o.servicePct || 0) + '"></label>' +
+        '<label class="field"><span>Couvert (R$)</span><input id="receiptCouvert" inputmode="decimal" value="' + ((o.couvert || 0) ? String(o.couvert).replace(".", ",") : "") + '" placeholder="0,00"></label>' +
+        '<label class="field" style="grid-column:1/-1"><span>Outros serviços (nome e valor)</span><input id="receiptOtherName" maxlength="40" value="' + esc((o.otherService && o.otherService.name) || "") + '" placeholder="Ex.: taxa de rolha"></label>' +
+        '<label class="field" style="grid-column:1/-1"><span>Valor de outros serviços (R$)</span><input id="receiptOtherValue" inputmode="decimal" value="' + ((o.otherService && o.otherService.value) ? String(o.otherService.value).replace(".", ",") : "") + '" placeholder="0,00"></label></div></div>' : "";
+      b.innerHTML = fields + '<label class="field"><span>Recado no comprovante</span><textarea id="receiptMessage" maxlength="300" placeholder="Ex.: Obrigado! Volte sempre.">' + esc(o.message || o.note || "") + '</textarea></label><div class="receipt-prev" id="receiptPreview">' + esc(txt) + '</div>';
+      function dec(v) { return Math.max(0, parseFloat(String(v || "0").replace(",", ".")) || 0); }
+      function refresh() {
+        if (kind === "comanda") {
+          var pct = dec((b.querySelector("#receiptServicePct") || {}).value), couvert = dec((b.querySelector("#receiptCouvert") || {}).value), other = dec((b.querySelector("#receiptOtherValue") || {}).value);
+          o.servicePct = Math.min(100, pct); o.service = o.subtotal * o.servicePct / 100; o.couvert = couvert;
+          var name = ((b.querySelector("#receiptOtherName") || {}).value || "").trim();
+          o.otherService = (other > 0) ? { name: name || "Outros serviços", value: other } : null;
+          o.total = o.subtotal + o.service + o.couvert + other;
+        }
+        b.querySelector("#receiptPreview").textContent = receiptLines(o, kind);
+      }
+      b.querySelectorAll("#receiptMessage,#receiptServicePct,#receiptCouvert,#receiptOtherName,#receiptOtherValue").forEach(function (el) { el.addEventListener("input", function () { if (el.id === "receiptMessage") o.message = el.value.slice(0, 300); refresh(); }); });
+      refresh();
     }, function (f) {
       var pr = document.createElement("button"); pr.className = "btn red block lg slab";
       pr.innerHTML = ic("bill", 18) + " Imprimir";
@@ -3356,7 +3374,9 @@
       sh.innerHTML = ic("share", 18) + " Compartilhar"; sh.onclick = function () { shareText(receiptLines(o, kind)); };
       f.appendChild(sh);
     });
-    if (auto && prn().mode !== "off" && prn().mode !== "compartilhar") setTimeout(function () { doPrint(o, kind); }, 350);
+    // A comanda permite incluir taxas antes de imprimir; exige confirmação
+    // explícita do garçom depois da conferência dos valores.
+    if (auto && kind !== "comanda" && prn().mode !== "off" && prn().mode !== "compartilhar") setTimeout(function () { doPrint(o, kind); }, 350);
   }
   function receiptAfterClose(sale) {
     var p = prn();

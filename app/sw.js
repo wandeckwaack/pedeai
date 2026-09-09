@@ -1,6 +1,6 @@
 /* PedeAí — cache somente do aplicativo. APIs e mutações sempre usam a rede.
    O cache existente permanece disponível durante quedas e atualizações. */
-var CACHE = "pedeai-v3-7";
+var CACHE = "pedeai-v3-8";
 var SCOPE = new URL(self.registration.scope);
 var ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg", "./icon-maskable.svg"];
 var INDEX = new URL("./index.html", SCOPE).href;

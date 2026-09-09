@@ -223,7 +223,6 @@
   }
   .field textarea { resize: vertical; min-height: 84px; line-height: 1.45; }
   .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--red); }
-  .pinrow input { letter-spacing: .55em; text-align: center; font-family: "Spline Sans Mono", monospace; }
   .choice { display: flex; flex-direction: column; gap: 11px; }
   .choice button {
     text-align: left; border: 2px solid var(--line); background: var(--ink-2);
@@ -459,9 +458,6 @@
   .troco.neg { background: var(--yellow); color: var(--yellow-ink); }
 
   /* PIN pad */
-  .pindots { display: flex; gap: 16px; justify-content: center; padding: 10px 0 20px; }
-  .pindots i { width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--bone-faint); transition: .12s; }
-  .pindots i.on { background: var(--red); border-color: var(--red); transform: scale(1.12); }
   .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .keypad button { min-height: 62px; border-radius: 15px; background: var(--ink-3); border: 2px solid var(--line); font-size: 24px; font-weight: 700; font-family: "Spline Sans Mono", monospace; color: var(--bone); transition: transform .08s, background .1s; }
   .keypad button:active { transform: scale(.94); background: var(--ink-4); }
@@ -531,8 +527,8 @@
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.13.9";
-  var VERSION_CODE = 62;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
+  var KEY = "pedeai.v2", VERSION = "4.14.0";
+  var VERSION_CODE = 66;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- logger de erros (silencioso -> backend -> erros_pedeai.log) ----------
@@ -1118,6 +1114,11 @@
     if (typeof state.settings.otherService.value !== "number") state.settings.otherService.value = +state.settings.otherService.value || 0;
     if (typeof state.settings.haptics !== "boolean") state.settings.haptics = true;
     if (typeof state.settings.sound !== "boolean") state.settings.sound = true;
+    // Colaboradores agora são contas vinculadas à loja, nunca atendentes locais.
+    // Mantém somente o responsável local para atribuição histórica das comandas.
+    state.staff = (Array.isArray(state.staff) ? state.staff : []).filter(function (s) { return s && s.role === "admin"; }).map(function (s) { var o = {}; for (var k in s) if (k !== "pin") o[k] = s[k]; return o; });
+    if (!state.staff.length && state.setup) state.staff = [{ id: uid(), name: (state.biz && state.biz.name) ? "Responsável" : "Você", role: "admin" }];
+    if (!state.activeStaffId || !state.staff.some(function (s) { return s.id === state.activeStaffId; })) state.activeStaffId = state.staff[0] ? state.staff[0].id : null;
     if (!state.settings.printer) state.settings.printer = { mode: "off", width: 58, showOnClose: false, autoBill: false, header: "" };
     if (!state.settings.theme) state.settings.theme = "auto";
     if (!state.ui) state.ui = { kitchenSeenAt: 0 };
@@ -1300,15 +1301,7 @@
   function syncApplyCfg(c) {
     if (!c) return;
     if (c.biz) state.biz = c.biz;
-    if (c.staff && c.staff.length) {
-      // preserva os PINs locais por id (eles não trafegam pela rede — F4)
-      var oldPins = {};
-      (state.staff || []).forEach(function (s) { if (s && s.id && s.pin) oldPins[s.id] = s.pin; });
-      state.staff = c.staff.map(function (s) {
-        if (s && s.id && !s.pin && oldPins[s.id]) s.pin = oldPins[s.id];
-        return s;
-      });
-    }
+    if (c.staff && c.staff.length) state.staff = c.staff.filter(function (s) { return s && s.role === "admin"; }).map(function (s) { var clean = {}; for (var k in s) if (k !== "pin") clean[k] = s[k]; return clean; });
     if (c.cats && c.cats.length) state.cats = c.cats;
     if (c.menu) state.menu = c.menu;
     if (typeof c.linkedCashier === "boolean") state.linkedCashier = c.linkedCashier;
@@ -1968,7 +1961,10 @@
           ok.disabled = false;
           if (j && j.link) {
             var out = scrim.querySelector("#invout");
-            out.innerHTML = 'Convite gerado. Enviamos por e-mail e você também pode compartilhar o link:<br><b class="mono" style="word-break:break-all">' + esc(j.link) + '</b>';
+            var code = j.accessCode || "";
+            out.innerHTML = '<b>Convite enviado por e-mail.</b><br>O colaborador pode tocar no link ou informar este código no app:<br><b class="mono" style="font-size:20px;letter-spacing:.16em">' + esc(code) + '</b><br><span class="muted">Link de acesso: </span><b class="mono" style="word-break:break-all">' + esc(j.link) + '</b>';
+            if (state.store) { state.store.events = (state.store.events || []).concat([{ at: Date.now(), status: "invite-sent", detail: "Convite enviado para " + email }]).slice(-20); persist(false); }
+            toast("Convite enviado · código " + code);
             try { navigator.clipboard.writeText(j.link); toast("Link copiado"); } catch (e) {}
           } else { toast((j && j.error) || "Não foi possível convidar"); }
         }).catch(function () { ok.disabled = false; toast("Sem conexão; tente de novo"); });
@@ -1978,7 +1974,7 @@
   }
   function storeTeamSheet() {
     if (storeRole() !== "full") return;
-    openSheet("Equipe do estabelecimento", function (b) {
+    openSheet("Atendentes da minha loja", function (b) {
       b.innerHTML = '<p class="muted" style="font-size:13px">Carregando…</p>';
       storeApi("/stores/" + state.store.id + "/collaborators").then(function (j) {
         var cs = (j && j.collaborators) || [], inv = (j && j.invites) || [];
@@ -1990,7 +1986,7 @@
         }).join("") : '<p class="muted" style="font-size:13px">Ninguém na equipe ainda.</p>') +
           (inv.length ? '<div style="font-size:12px;font-weight:800;color:var(--bone-dim);text-transform:uppercase;margin:10px 0 4px">Convites pendentes</div>' +
             inv.map(function (i) { return '<div class="cfg-row"><span>' + esc(i.email) + '</span><span class="right muted">' + syncRoleLabel(i.role) + '</span></div>'; }).join("") : "") +
-          '<button class="cfg-row act" id="tminvite" style="margin-top:10px">' + ic("plus", 17) + ' Convidar pessoa</button>';
+          '<button class="cfg-row act" id="tminvite" style="margin-top:10px">' + ic("plus", 17) + ' Adicionar atendente por e-mail</button>';
         b.querySelectorAll("select.tmr").forEach(function (sel) {
           sel.onchange = function () { storeApi("/stores/" + state.store.id + "/collaborators/" + sel.dataset.uid + "/role", "POST", { role: sel.value }).then(function () { toast("Papel atualizado"); }).catch(function () { toast("Falhou"); }); };
         });
@@ -2017,24 +2013,22 @@
   }
   function loadDemo() {
     var m = buildMenu("bar");
-    var a = { id: uid(), name: "Você (dono)", role: "admin", pin: "" };
-    var g = { id: uid(), name: "Bruno", role: "garcom", pin: "" };
-    var c = { id: uid(), name: "Dona Márcia", role: "cozinha", pin: "" };
+    var a = { id: uid(), name: "Você (dono)", role: "admin" };
     var now = Date.now();
     state = { setup: true, version: VERSION, biz: { name: "Bar do Cacau", type: "bar", logo: null }, linkedCashier: true,
       settings: { theme: "auto", haptics: true, sound: true, servicePct: 10 }, ui: { kitchenSeenAt: 0, demo: true, demoStart: now, demoActs: 0 },
       // Demo = ambiente local/mock: estabelecimento NÃO vinculado, sync desligado.
       store: { id: null, name: "", role: "full", enabled: false, jwt: "", jwtExp: 0, cfgAt: 0, tomb: {}, _tombPending: {}, status: "off", events: [] },
-      staff: [a, g, c], activeStaffId: a.id, cats: m.cats, menu: m.menu,
+      staff: [a], activeStaffId: a.id, cats: m.cats, menu: m.menu,
       tables: [
-        { id: uid(), name: "Mesa 3", openedAt: now - 21 * 6e4, byId: g.id, status: "aberta", note: "Aniversário — levar vela", people: 4, items: [
+        { id: uid(), name: "Mesa 3", openedAt: now - 21 * 6e4, byId: a.id, status: "aberta", note: "Aniversário — levar vela", people: 4, items: [
           { id: uid(), menuId: m.menu[2].id, name: "Skol lata", price: 6, qty: 4, kitchen: false, done: false, note: "", addedAt: now - 20 * 6e4 },
           { id: uid(), menuId: m.menu[11].id, name: "Batata frita", price: 25, qty: 1, kitchen: true, done: false, note: "sem sal", addedAt: now - 18 * 6e4 } ] },
-        { id: uid(), name: "Mesa 7", openedAt: now - 6 * 6e4, byId: g.id, status: "aberta", note: "", people: 2, items: [
+        { id: uid(), name: "Mesa 7", openedAt: now - 6 * 6e4, byId: a.id, status: "aberta", note: "", people: 2, items: [
           { id: uid(), menuId: m.menu[12].id, name: "Calabresa acebolada", price: 30, qty: 1, kitchen: true, done: false, note: "", addedAt: now - 5 * 6e4 },
           { id: uid(), menuId: m.menu[0].id, name: "Heineken 600ml", price: 15, qty: 2, kitchen: false, done: false, note: "", addedAt: now - 5 * 6e4 } ] } ],
       day: { date: todayStr(), sales: [
-        { id: uid(), table: "Mesa 1", items: [{ name: "Skol lata", price: 6, qty: 6 }, { name: "Torresmo", price: 28, qty: 1 }], subtotal: 64, discount: 0, discountLabel: "", service: 0, total: 64, people: 2, pay: { method: "Pix", received: 0, change: 0 }, byId: g.id, closedById: a.id, closedAt: now - 42 * 6e4 } ] },
+        { id: uid(), table: "Mesa 1", items: [{ name: "Skol lata", price: 6, qty: 6 }, { name: "Torresmo", price: 28, qty: 1 }], subtotal: 64, discount: 0, discountLabel: "", service: 0, total: 64, people: 2, pay: { method: "Pix", received: 0, change: 0 }, byId: a.id, closedById: a.id, closedAt: now - 42 * 6e4 } ] },
       history: [] };
     migrate();
     persist(); flow = "app"; current = "mesas"; openTableId = null;
@@ -2564,7 +2558,7 @@
     }
   }
 
-  function startWizard() { wiz = { step: 1, name: "", type: "bar", logo: null, adminName: "", adminPin: "", useTemplate: true, linked: true, service: false }; flow = "wizard"; renderAll(); }
+  function startWizard() { wiz = { step: 1, name: "", type: "bar", logo: null, adminName: "", useTemplate: true, linked: true, service: false }; flow = "wizard"; renderAll(); }
 
   function renderWizard() {
     var body = "";
@@ -2577,9 +2571,8 @@
         '<label class="field"><span>Tipo</span><select id="btype">' + TYPES.map(function (t) { return '<option value="' + t.id + '"' + (t.id === wiz.type ? " selected" : "") + '>' + t.label + '</option>'; }).join("") + '</select></label>';
     } else if (wiz.step === 2) {
       body = '<div class="wz-step">2/4</div><h2>Você é o dono</h2>' +
-        '<p class="muted" style="font-size:14px;margin-bottom:16px">Seu nome vai nas contas que você fechar. O PIN protege os ajustes e a troca de usuário.</p>' +
-        '<label class="field"><span>Seu nome</span><input id="aname" value="' + esc(wiz.adminName) + '" placeholder="Seu nome"></label>' +
-        '<label class="field pinrow"><span>Seu PIN (4 dígitos)</span><input id="apin" inputmode="numeric" maxlength="4" value="' + esc(wiz.adminPin) + '" placeholder="0000"></label>';
+        '<p class="muted" style="font-size:14px;margin-bottom:16px">Seu nome vai nas contas que você fechar.</p>' +
+        '<label class="field"><span>Seu nome</span><input id="aname" value="' + esc(wiz.adminName) + '" placeholder="Seu nome"></label>';
     } else if (wiz.step === 3) {
       var tl = TYPES.find(function (t) { return t.id === wiz.type; }), count = (TEMPLATES[wiz.type] || []).length;
       body = '<div class="wz-step">3/4</div><h2>Cardápio</h2><div class="choice">' +
@@ -2622,15 +2615,13 @@
       if (v && !wiz.name) { toast("Digite o nome do bar"); return false; }
     } else if (wiz.step === 2) {
       var a = document.getElementById("aname"); if (a) wiz.adminName = a.value.trim();
-      var p = document.getElementById("apin"); if (p) wiz.adminPin = p.value.replace(/\D/g, "").slice(0, 4);
       if (v && !wiz.adminName) { toast("Digite seu nome"); return false; }
-      if (v && wiz.adminPin.length !== 4) { toast("PIN de 4 dígitos"); return false; }
     }
     return true;
   }
   function finishWizard() {
     var m = wiz.useTemplate ? buildMenu(wiz.type) : { cats: ["Geral"], menu: [] };
-    var admin = { id: uid(), name: wiz.adminName, role: "admin", pin: wiz.adminPin };
+    var admin = { id: uid(), name: wiz.adminName, role: "admin" };
     state = { setup: true, setupOwn: true, version: VERSION, biz: { name: wiz.name, type: wiz.type, logo: wiz.logo }, linkedCashier: wiz.linked,
       settings: { theme: (state.settings && state.settings.theme) || "auto", haptics: !(state.settings && state.settings.haptics === false), sound: !(state.settings && state.settings.sound === false), servicePct: wiz.service ? 10 : 10, serviceDefault: !!wiz.service, printer: (state.settings && state.settings.printer) || { mode: "off", width: 58, showOnClose: false, autoBill: false, header: "" } },
       ui: { kitchenSeenAt: 0 },
@@ -3465,8 +3456,8 @@
     var e = document.createElement("button"); e.className = "cfg-row act"; e.textContent = "Editar dados"; e.onclick = editBiz; s1.appendChild(e);
     v.appendChild(s1);
 
-    // ---- Loja e equipe (unificado: estabelecimento + convites + atendentes locais) ----
-    var s2 = document.createElement("div"); s2.className = "cfg-sec"; s2.innerHTML = '<h4>Loja e equipe</h4>';
+    // ---- Minha loja (estabelecimento + convites por e-mail) ----
+    var s2 = document.createElement("div"); s2.className = "cfg-sec"; s2.innerHTML = '<h4>Minha loja</h4>';
     if (!authReady || !authToken) {
       s2.insertAdjacentHTML("beforeend", '<div class="cfg-row"><span class="sub" style="font-size:12px">Entre na sua conta para gerenciar a loja e a equipe (convites por e-mail). O app funciona offline sem conta.</span></div>');
       var la = document.createElement("button"); la.className = "cfg-row act"; la.innerHTML = ic("user", 17) + " Entrar na conta";
@@ -3487,7 +3478,7 @@
         '<div class="cfg-row">Situação<span class="right muted" id="networkcfgstatus">' + stt + '</span></div>' +
         (state.store.status === "online" ? '<div class="cfg-row">Conectados agora<span class="right muted">' + ((state.store.peers || syncPeers).length || 1) + ' aparelho(s)</span></div>' : ''));
       if (storeRole() === "full") {
-        var sc1 = document.createElement("button"); sc1.className = "cfg-row act"; sc1.innerHTML = ic("people", 17) + " Equipe e convites";
+      var sc1 = document.createElement("button"); sc1.className = "cfg-row act"; sc1.innerHTML = ic("plus", 17) + " Adicionar atendente";
         sc1.onclick = storeTeamSheet; s2.appendChild(sc1);
       }
       var sc5 = document.createElement("button"); sc5.className = "cfg-row"; sc5.innerHTML = 'Trocar de loja<span class="right muted">›</span>';
@@ -3499,15 +3490,10 @@
       manual.disabled = (syncBusy && !syncBackgrounded) || Date.now() < syncManualLockUntil;
       s2.appendChild(manual);
     }
-    // Atendentes deste aparelho (atribuição local na comanda — não são contas).
-    s2.insertAdjacentHTML("beforeend", '<div class="cfg-row" style="margin-top:8px"><span class="sub" style="font-size:12px">Quem atende por este aparelho (só pra marcar nas comandas):</span></div>');
-    state.staff.forEach(function (st) {
-      var r = document.createElement("button"); r.className = "cfg-row";
-      r.innerHTML = '<span class="cfg-av">' + esc(initials(st.name)) + '</span><span>' + esc(st.name) + '<br><span class="sub">' + (ROLE_LABEL[st.role] || "") + '</span></span>';
-      r.onclick = function () { editStaff(st); }; s2.appendChild(r);
-    });
-    var addS = document.createElement("button"); addS.className = "cfg-row collab-add"; addS.innerHTML = ic("plus", 17) + " Adicionar atendente";
-    addS.onclick = function () { editStaff(null); }; s2.appendChild(addS);
+    if (authReady && authToken && storeLinked() && storeRole() === "full") {
+      var addS = document.createElement("button"); addS.className = "cfg-row collab-add"; addS.innerHTML = ic("plus", 17) + " Adicionar atendente por e-mail";
+      addS.onclick = storeInviteSheet; s2.appendChild(addS);
+    }
     v.appendChild(s2);
 
     var s3 = document.createElement("div"); s3.className = "cfg-sec"; s3.innerHTML = '<h4>Caixa</h4>';
@@ -3689,16 +3675,14 @@
     var isNew = !st, isAdmin = st && st.role === "admin";
     openSheet(isNew ? "Novo colaborador" : "Colaborador", function (b) {
       b.innerHTML = '<label class="field"><span>Nome</span><input id="sn" value="' + esc(st ? st.name : "") + '"></label>' +
-        (isAdmin ? '' : '<label class="field"><span>Função</span><select id="sr">' + [["garcom", "Garçom"], ["cozinha", "Cozinha"], ["caixa", "Caixa"]].map(function (r) { return '<option value="' + r[0] + '"' + (st && st.role === r[0] ? " selected" : "") + '>' + r[1] + '</option>'; }).join("") + '</select></label>') +
-        '<label class="field pinrow"><span>PIN (4 dígitos, opcional)</span><input id="sp" inputmode="numeric" maxlength="4" value="' + esc(st ? st.pin : "") + '" placeholder="----"></label>';
+        (isAdmin ? '' : '<label class="field"><span>Função</span><select id="sr">' + [["garcom", "Garçom"], ["cozinha", "Cozinha"], ["caixa", "Caixa"]].map(function (r) { return '<option value="' + r[0] + '"' + (st && st.role === r[0] ? " selected" : "") + '>' + r[1] + '</option>'; }).join("") + '</select></label>');
     }, function (f) {
       var ok = document.createElement("button"); ok.className = "btn red block lg slab"; ok.textContent = "Salvar";
       ok.onclick = function () {
-        var nm = (scrim.querySelector("#sn").value || "").trim(), pn = (scrim.querySelector("#sp").value || "").replace(/\D/g, "").slice(0, 4);
+        var nm = (scrim.querySelector("#sn").value || "").trim();
         if (!nm) { toast("Digite o nome"); return; }
-        if (pn && pn.length !== 4) { toast("PIN de 4 dígitos"); return; }
-        if (isNew) state.staff.push({ id: uid(), name: nm, role: scrim.querySelector("#sr").value, pin: pn });
-        else { st.name = nm; st.pin = pn; if (!isAdmin) st.role = scrim.querySelector("#sr").value; }
+        if (isNew) state.staff.push({ id: uid(), name: nm, role: scrim.querySelector("#sr").value });
+        else { st.name = nm; if (!isAdmin) st.role = scrim.querySelector("#sr").value; }
         touchCfg(); persist(); closeSheet(); renderApp();
       };
       f.appendChild(ok);
@@ -3770,28 +3754,7 @@
   }
   function pickUser(st) {
     if (st.id === state.activeStaffId) { closeSheet(); return; }
-    if (st.pin) {
-      pinPad(st.name.split(" ")[0], function (val, reset) {
-        if (val === st.pin) { state.activeStaffId = st.id; persist(); closeSheet(); current = null; haptic(10); renderApp(); }
-        else { toast("PIN errado"); haptic([15, 50, 15]); reset(); }
-      });
-    } else { state.activeStaffId = st.id; persist(); closeSheet(); current = null; haptic(8); renderApp(); }
-  }
-  function pinPad(name, onOk) {
-    var buf = "";
-    openSheet("PIN de " + name, function (b) {
-      b.innerHTML = '<div class="pindots" id="pd"></div><div class="keypad" id="kp"></div>';
-      var pd = b.querySelector("#pd"), kp = b.querySelector("#kp");
-      function draw() { pd.innerHTML = [0, 1, 2, 3].map(function (i) { return '<i class="' + (i < buf.length ? "on" : "") + '"></i>'; }).join(""); }
-      ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"].forEach(function (k) {
-        var btn = document.createElement("button");
-        if (k === "") { btn.className = "kp-empty"; btn.disabled = true; }
-        else if (k === "del") { btn.innerHTML = ic("back", 22); btn.onclick = function () { buf = buf.slice(0, -1); haptic(4); draw(); }; }
-        else { btn.textContent = k; btn.onclick = function () { if (buf.length < 4) { buf += k; haptic(4); draw(); if (buf.length === 4) setTimeout(function () { onOk(buf, function () { buf = ""; draw(); }); }, 130); } }; }
-        kp.appendChild(btn);
-      });
-      draw();
-    });
+    state.activeStaffId = st.id; persist(); closeSheet(); current = null; haptic(8); renderApp();
   }
 
   // ---------- sheet / toast / count-up ----------

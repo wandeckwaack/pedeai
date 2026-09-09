@@ -531,7 +531,7 @@
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.13.6";
+  var KEY = "pedeai.v2", VERSION = "4.13.7";
   var VERSION_CODE = 62;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -2403,7 +2403,7 @@
       if (go) { go.disabled = true; go.textContent = "Criando…"; }
       authApi("/auth/register", "POST", { name: nm, phone: ph, email: authFlowId, password: pw }).then(function (j) {
         authToken = j.token; authUser = j.user; return authStoreToken(authToken);
-      }).then(function () { renderAuthCode(); }).catch(function (e) {
+      }).then(function (j) { if (j && j.needsVerification === false) return authAfterLogin(); renderAuthCode(); }).catch(function (e) {
         var m = (e && e.message) || "não foi possível criar a conta";
         if (e && e.status === 409) { renderAuthStep2(true, "", "Este e-mail já tem conta — entre com a senha."); }
         else renderAuthStep2(false, "", m);
@@ -2413,7 +2413,7 @@
       if (go) { go.disabled = true; go.textContent = "Entrando…"; }
       authApi("/auth/login", "POST", { identifier: authFlowId, password: pw }).then(function (j) {
         authToken = j.token; authUser = j.user; return authStoreToken(authToken);
-      }).then(function () { renderAuthCode(); }).catch(function (e) {
+      }).then(function (j) { if (j && j.needsVerification === false) return authAfterLogin(); renderAuthCode(); }).catch(function (e) {
         renderAuthStep2(true, "", (e && e.message) || "e-mail ou senha incorretos");
       });
     }

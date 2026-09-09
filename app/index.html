@@ -527,8 +527,8 @@
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.14.1";
-  var VERSION_CODE = 67;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
+  var KEY = "pedeai.v2", VERSION = "4.14.2";
+  var VERSION_CODE = 68;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- logger de erros (silencioso -> backend -> erros_pedeai.log) ----------
@@ -3968,7 +3968,8 @@
       .then(function (j) {
         if (!j || !j.version) return;
         var need = j.min || j.version;
-        if (verCmp(VERSION, need) < 0) {
+        var needCode = parseInt(j.minVersionCode || j.versionCode || 0, 10) || 0;
+        if (verCmp(VERSION, need) < 0 || (needCode > 0 && VERSION_CODE < needCode)) {
           forceUpdateInfo = j;
           forceUpdateGate = true;
           try { reportError("forced-update", { message: "versao obsoleta: local " + VERSION + " < prod " + need }); } catch (e) {}

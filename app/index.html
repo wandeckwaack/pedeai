@@ -171,6 +171,7 @@
   .btn.xl { min-height: 62px; font-size: 17px; }
   .btn .ic { width: 21px; height: 21px; }
   .btn:disabled { opacity: .4; }
+  .btn.is-loading { opacity: .55; cursor: progress; pointer-events: none; }
   .btn.slab { font-family: "Anton", sans-serif; text-transform: uppercase; letter-spacing: .03em; font-weight: 400; font-size: 19px; }
 
   .muted { color: var(--bone-dim); }
@@ -525,7 +526,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.11.0";
+  var KEY = "pedeai.v2", VERSION = "4.11.1";
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- licença / período de teste (15 dias) ----------
@@ -729,11 +730,12 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   }
   async function authLogout() {
     if (syncPaired() && state.sync.role !== "full") { toast("Para sair, use Sair da sala"); return; }
+    if (syncPaired()) syncUnbindRoom();
     try { await authApi("/auth/logout", "POST", {}); } catch (e) {}
     var s = authPlugin("SecureStorage"); try { if (s && s.remove) await s.remove({ key: "pedeai.auth.token" }); } catch (e) {}
     try { localStorage.removeItem("pedeai.auth.token"); } catch (e) {}
     authSessionUnavailable = false; clearTimeout(authSessionTimer);
-    authToken = ""; authUser = null; authReady = false; appLocked = false; syncStop();
+    authToken = ""; authUser = null; authReady = false; appLocked = false; syncResetRuntime();
     flow = "welcome"; renderAll(); toast("Conta desconectada; seus dados continuam salvos");
   }
 
@@ -1016,7 +1018,9 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   // sala trocam mesas/itens/vendas a cada ~3s (last-write-wins por updatedAt).
   var SYNC_DEFAULT_URL = "https://deckk.duckdns.org/sync";
   var SYNC_POLL_MS = 3000, SYNC_TIMEOUT_MS = 8000, SYNC_RETRY_MAX_MS = 15000;
-  var syncTimer = null, syncBusy = false, syncPushedAt = 0, syncEpoch = 0;
+  var SYNC_PHANTOM_MS = 20000;   // "online" sem nenhum pong há mais que isto = conexão fantasma
+  var syncManualLockUntil = 0;   // trava anti-repique do botão "Sincronizar Manualmente"
+  var syncTimer = null, syncBusy = false, syncPushedAt = 0, syncEpoch = 0, syncManualPromise = null;
   var syncRequest = null, syncFailures = 0, syncRetryAt = 0, syncRetryStatus = 0;
   var syncBackgrounded = false, syncLastKick = 0;
   var syncLastToast = "";
@@ -1202,10 +1206,11 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     }
     clearTimeout(syncTimer); syncTimer = null;
     if (state.sync.mk && !state.sync.rolePins) { state.sync.rolePins = rolePins(state.sync.pin); persist(false); }
+    if (!state.sync.presenceId) { state.sync.presenceId = uid(); persist(false); }
     syncBusy = true; syncPushedAt = Date.now();
     var epoch = syncEpoch, requestedRoom = state.sync.room, requestedPin = state.sync.pin, requestedRole = state.sync.role, requestedUrl = syncUrl();
     var ping = syncPushedAt.toString(36) + ":" + epoch + ":" + Math.random().toString(36).slice(2);
-    var payload = { room: state.sync.room, pin: state.sync.pin, role: state.sync.role || "full", ping: ping,
+    var payload = { room: state.sync.room, pin: state.sync.pin, role: state.sync.role || "full", deviceId: updInstallId(), presenceId: state.sync.presenceId, ping: ping,
       mk: state.sync.mk || "", rolePins: state.sync.mk ? state.sync.rolePins : undefined, tables: state.tables,
       tomb: state.sync.tomb || {}, day: state.day, cfg: syncCfgBlob(), cfgAt: state.sync.cfgAt || 0 };
     if (state.sync.needCreate) payload.create = 1;
@@ -1228,6 +1233,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       state.sync.peers = syncPeers;
       state.sync.lastRoundTripMs = Math.max(0, Date.now() - request.startedAt);
       state.sync.heartbeat = res.pong === ping ? "pong" : "http";
+      if (res.pong === ping) state.sync.lastPongAt = Date.now();
       var recovered = networkOnline();
       persist(changed || recovered);
       if (!recovered) {
@@ -1271,6 +1277,26 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     if (state.sync) state.sync.status = "off";
     syncPaintDot();
   }
+  function syncResetRuntime() {
+    syncStop(); syncFailures = 0; syncRetryAt = 0; syncRetryStatus = 0;
+    syncLastKick = 0; syncBackgrounded = false; syncPeers = []; syncLastToast = "";
+    syncManualPromise = null; syncManualLockUntil = 0;
+  }
+  function syncLeavePresence(snapshot) {
+    if (!snapshot || !snapshot.room || !snapshot.pin) return Promise.resolve(false);
+    var payload = { action: "leave", room: snapshot.room, pin: snapshot.pin, role: snapshot.role || "full",
+      mk: snapshot.mk || "", deviceId: updInstallId(), presenceId: snapshot.presenceId || "" };
+    return fetch((snapshot.server || SYNC_DEFAULT_URL), { method: "POST", cache: "no-store", keepalive: true,
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(function (r) { return r.ok; }).catch(function () { return false; });
+  }
+  function syncUnbindRoom() {
+    var snapshot = Object.assign({}, state.sync || {}), server = snapshot.server || "";
+    syncResetRuntime();
+    state.sync = { room: null, pin: null, role: "full", enabled: false, server: server, cfgAt: 0, tomb: {}, status: "off", events: snapshot.events || [] };
+    persist();
+    syncLeavePresence(snapshot);
+    return snapshot;
+  }
   function syncKick(manual) {
     if (!syncActive()) return Promise.resolve(false);
     if (syncRetryStatus >= 400 && Date.now() < syncRetryAt) {
@@ -1284,12 +1310,35 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     if (navigator.onLine !== false) state.sync.status = "connecting";
     return syncTick();
   }
+  function syncManualSetBusy(on) {
+    ["syncmanual", "syncmanualcfg"].forEach(function (id) {
+      var b = document.getElementById(id);
+      if (!b) return;
+      b.disabled = !!on || (syncBusy && !syncBackgrounded);
+      b.classList.toggle("is-loading", !!on);
+      b.textContent = on ? "Sincronizando…" : "Sincronizar Manualmente";
+    });
+  }
   function syncManual() {
     if (!syncPaired()) { toast("Conecte este aparelho a uma sala"); return; }
-    if (syncBusy && !syncBackgrounded && Date.now() - syncPushedAt < SYNC_TIMEOUT_MS) { toast("Sincronização em andamento"); return; }
+    var now = Date.now();
+    // Debounce: toques repetidos dentro da janela são ignorados em silêncio
+    // (sem toast, sem re-kick) — fim do pisca-pisca no botão.
+    if (now < syncManualLockUntil) return syncManualPromise || Promise.resolve(false);
+    syncManualLockUntil = now + Math.max(4000, SYNC_TIMEOUT_MS + 500);
+    syncManualSetBusy(true);
+    var pending = syncManualPromise || (syncBusy && !syncBackgrounded && now - syncPushedAt < SYNC_TIMEOUT_MS
+      ? (syncRequest && syncRequest.promise) : null);
+    if (pending) {
+      toast("Sincronização em andamento");
+      return Promise.resolve(pending).catch(function () {}).finally(function () { syncManualSetBusy(false); });
+    }
     state.sync.enabled = true; persist(false);
-    if (navigator.onLine !== false && Date.now() >= syncRetryAt) toast("Sincronizando com a sala…");
-    return syncKick(true);
+    if (navigator.onLine !== false && now >= syncRetryAt) toast("Sincronizando com a sala…");
+    syncManualPromise = Promise.resolve(syncKick(true)).catch(function () { return false; }).finally(function () {
+      syncManualPromise = null; syncManualSetBusy(false); syncPaintDot();
+    });
+    syncPaintDot(); return syncManualPromise;
   }
   function networkDuration(ms) {
     var seconds = Math.max(0, Math.round(ms / 1000));
@@ -1300,6 +1349,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   function networkEvent(status, detail, extra) {
     state.sync.events = (state.sync.events || []).concat([Object.assign({ at: Date.now(), status: status, detail: detail }, extra || {})]).slice(-100);
     persist(false);
+    networkPaintDetails();
   }
   function networkOffline(status, detail) {
     var first = !state.sync.offlineSince, changed = state.sync.status !== status;
@@ -1366,9 +1416,29 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   });
   document.addEventListener("visibilitychange", function () { if (document.hidden) syncBackground(); else syncResume(); });
   window.addEventListener("pageshow", syncResume);
-  window.addEventListener("pagehide", syncBackground);
+  window.addEventListener("pagehide", function (e) {
+    syncBackground();
+    // Fechou de verdade (não foi pro bfcache): avisa o servidor pra este aparelho
+    // sumir do painel na hora, sem esperar o TTL de presença fantasma expirar.
+    if (!e.persisted && syncPaired()) { try { syncLeavePresence(Object.assign({}, state.sync || {})); } catch (err) {} }
+  });
   document.addEventListener("freeze", syncBackground);
   document.addEventListener("resume", syncResume);
+  // Cão de guarda de conexão fantasma: o status ficou "online" mas o poll parou de
+  // trazer pong (timer perdido, engine congelada e retomada torta, socket zumbi).
+  // Sem request em voo e sem pong há SYNC_PHANTOM_MS -> derruba e reconecta.
+  setInterval(function () {
+    try {
+      if (!syncActive() || document.hidden || syncRequest) return;
+      if ((state.sync.status || "") !== "online") return;
+      var ref = state.sync.lastPongAt || state.sync.lastSuccessAt || 0;
+      if (!ref || Date.now() - ref <= SYNC_PHANTOM_MS) return;
+      networkEvent("phantom", "Conexão fantasma: sem resposta há " + networkDuration(Date.now() - ref));
+      syncCancelRequest();
+      networkOffline("offline", "Conexão inativa detectada; reconectando…");
+      syncKick(false);
+    } catch (err) {}
+  }, 7000);
   // mantém a tela acesa quando o aparelho é o painel da cozinha (pra não pausar o sync)
   var _wake = null;
   function wakeLockMaybe() {
@@ -1389,13 +1459,11 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     if (button) {
       button.title = syncPaired() ? (state.sync.lastError || "Conexão com a sala · toque para sincronizar ou ver o histórico") : "Estado da rede do aparelho · conecte uma sala para sincronizar";
       button.setAttribute("aria-label", "Conexão: " + networkLabel() + ". Abrir sincronização e histórico");
-      button.onclick = networkSheet;
     }
     ["syncmanual", "syncmanualcfg"].forEach(function (id) {
-      var b = document.getElementById(id); if (b) b.disabled = syncBusy || !syncPaired();
+      var b = document.getElementById(id); if (b) b.disabled = !!syncManualPromise || syncBusy || !syncPaired();
     });
     var status = document.getElementById("networkcfgstatus"); if (status) status.textContent = networkLabel();
-    networkPaintDetails();
   }
 
   // ---------- avisos de integração (garçom ⇄ cozinha ⇄ caixa) ----------
@@ -1560,12 +1628,12 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       f.appendChild(c);
     });
   }
-  function syncJoinSheet(preRole) {
+  function syncJoinSheet(preRole, prefillRoom) {
     var role = preRole || "waiter";
     openSheet("Conectar a um bar", function (b) {
       b.innerHTML =
         (syncCanScan() ? '<button class="btn ghost block" id="jscan" style="margin-bottom:14px">' + ic("eye", 18) + ' Escanear QR</button>' : '') +
-        '<label class="field"><span>Código da sala</span><input id="jr" autocapitalize="characters" maxlength="6" placeholder="ABC123" style="text-transform:uppercase;letter-spacing:.3em;font-family:\'Spline Sans Mono\',monospace"></label>' +
+        '<label class="field"><span>Código da sala</span><input id="jr" autocapitalize="characters" maxlength="6" value="' + esc(prefillRoom || "") + '" placeholder="ABC123" style="text-transform:uppercase;letter-spacing:.3em;font-family:\'Spline Sans Mono\',monospace"></label>' +
         '<label class="field pinrow"><span>PIN (6 dígitos)</span><input id="jp" inputmode="numeric" maxlength="6" placeholder="000000"></label>' +
         '<div style="font-size:12px;font-weight:800;color:var(--bone-dim);text-transform:uppercase;letter-spacing:.05em;margin:6px 0 8px">Papel deste aparelho</div>' +
         '<div class="seg" id="jrole" style="flex-wrap:wrap">' + SYNC_ROLES.filter(function (o) { return o[0] !== "full"; }).map(function (o) { return '<button data-r="' + o[0] + '" class="' + (o[0] === role ? "on" : "") + '" style="flex:1 0 40%">' + o[1] + '</button>'; }).join("") + '</div>' +
@@ -1597,8 +1665,37 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       f.appendChild(ok);
     });
   }
+  // Troca de papel sem travar o aparelho: derruba TUDO que a sessão do papel
+  // antigo mantinha aberto (request em voo, timer, promessa manual, wakeLock),
+  // avisa o servidor que o papel velho saiu (some do painel na hora) e sobe uma
+  // presença nova pra um "leave" atrasado do papel anterior não desconectar esta.
+  function syncSwitchRole(newRole) {
+    if (!state.sync) return;
+    if (state.sync.role === newRole) { renderAll(); wakeLockMaybe(); return; }
+    var prev = { room: state.sync.room, pin: state.sync.pin, role: state.sync.role,
+      mk: state.sync.mk || "", server: state.sync.server || "", presenceId: state.sync.presenceId || "" };
+    syncCancelRequest();                       // aborta fetch + limpa syncTimer + bump de epoch
+    syncFailures = 0; syncRetryAt = 0; syncRetryStatus = 0;
+    syncLastKick = 0; syncBackgrounded = false; syncPeers = []; syncLastToast = "";
+    syncManualPromise = null; syncManualLockUntil = 0;
+    try { syncLeavePresence(prev); } catch (e) {}   // beacon keepalive do papel antigo
+    state.sync.presenceId = uid();
+    state.sync.role = newRole;
+    state.sync.peers = [];
+    state.sync.status = "off";
+    state.sync.connectedAt = null;
+    state.sync.lastPongAt = 0;
+    persist();
+    renderAll();
+    try { syncStart(); } catch (e) {}
+    wakeLockMaybe();
+  }
   function syncChangeRoleSheet() {
-    if (!state.sync.mk) { toast("Para trocar de função, conecte com o PIN correspondente"); syncJoinSheet(); return; }
+    if (!state.sync.mk) {
+      var oldRole = state.sync.role, oldRoom = state.sync.room;
+      syncUnbindRoom(); renderAll();
+      toast("Sala liberada; use o PIN do novo papel"); syncJoinSheet(oldRole, oldRoom); return;
+    }
     var role = state.sync.role;
     openSheet("Papel deste aparelho", function (b) {
       b.innerHTML = '<p class="muted" style="font-size:12px;margin-bottom:10px">O aparelho principal mantém o acesso completo. Colaboradores devem usar o PIN da função fornecido pelo dono.</p><div class="seg" id="crole" style="flex-wrap:wrap">' + SYNC_ROLES.filter(function (o) { return o[0] !== "full"; }).map(function (o) { return '<button data-r="' + o[0] + '" class="' + (o[0] === role ? "on" : "") + '" style="flex:1 0 40%">' + o[1] + '</button>'; }).join("") + '</div>';
@@ -1607,15 +1704,13 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       });
     }, function (f) {
       var ok = document.createElement("button"); ok.className = "btn red block lg slab"; ok.textContent = "Salvar";
-      ok.onclick = function () { state.sync.role = role; persist(); closeSheet(); haptic(6); renderAll(); wakeLockMaybe(); };
+      ok.onclick = function () { closeSheet(); haptic(6); syncSwitchRole(role); };
       f.appendChild(ok);
     });
   }
   function syncDisconnect() {
     confirmDialog("Desconectar este aparelho da sala? Os dados que já estão aqui continuam.", "Desconectar", function () {
-      syncStop();
-      state.sync = { room: null, pin: null, role: "full", enabled: false, server: state.sync.server || "", cfgAt: 0, tomb: {}, status: "off" };
-      persist(); renderAll();
+      syncUnbindRoom(); renderAll();
     }, true);
   }
 
@@ -1855,16 +1950,10 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     });
   }
   function syncLeaveRoom() {
-    syncStop();
     var ownSetup = !!state.setupOwn && !state.ui.demo;
-    state.sync = { room: null, pin: null, role: "full", enabled: false, server: (state.sync && state.sync.server) || "", cfgAt: 0, tomb: {}, status: "off" };
-    if (ownSetup) { persist(); current = "mesas"; openTableId = null; renderAll(); toast("Desconectado da sala"); }
-    else {
-      // aparelho que só servia de garçom/cozinha — volta pro começo
-      try { localStorage.removeItem(KEY); } catch (e) {}
-      state = blankState(); migrate(); flow = "welcome"; current = "mesas"; openTableId = null; renderAll();
-      toast("Saiu da sala");
-    }
+    syncUnbindRoom(); current = "mesas"; openTableId = null;
+    if (!ownSetup) flow = "welcome";
+    renderAll(); toast(ownSetup ? "Desconectado da sala" : "Saiu da sala; dados locais preservados");
   }
   function tryExit() {
     if (scrim) { closeSheet(); return; }
@@ -2161,6 +2250,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
         return '<button data-tab="' + t[0] + '" class="' + (t[0] === current ? "on" : "") + '"><span class="navic">' + ic(t[2], 23) + '</span><span>' + t[1] + '</span></button>';
       }).join("") + '</nav>');
     var tb = document.getElementById("topback"); if (tb) tb.onclick = goBack;
+    var networkButton = document.getElementById("networkstatus"); if (networkButton) networkButton.onclick = networkSheet;
     var sc = document.getElementById("staffchip"); if (sc && !kitchen) sc.onclick = switchUserSheet;
     var kx = document.getElementById("kexit"); if (kx) kx.onclick = leaveSheet;
     var nv = document.getElementById("nav");
@@ -3016,7 +3106,8 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     }
     if (syncPaired()) {
       var manual = document.createElement("button"); manual.id = "syncmanualcfg"; manual.className = "btn bone block";
-      manual.textContent = "Sincronizar Manualmente"; manual.onclick = syncManual; manual.disabled = syncBusy;
+      manual.textContent = "Sincronizar Manualmente"; manual.onclick = syncManual;
+      manual.disabled = (syncBusy && !syncBackgrounded) || Date.now() < syncManualLockUntil;
       ssec.appendChild(manual);
     }
     var reconnect = document.createElement("button"); reconnect.className = "btn ghost block";

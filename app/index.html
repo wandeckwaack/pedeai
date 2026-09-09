@@ -3962,11 +3962,17 @@
     if (forceUpdateGate || _forceUpdChecking || navigator.onLine === false) return;
     _forceUpdChecking = true;
     var bust = "?t=" + Date.now();
-    fetch(PROD_VERSION_URL + bust, { cache: "no-store" })
-      .then(function (r) { if (!r.ok) throw new Error("no version.json"); return r.json(); })
-      .catch(function () { return fetch(AUTH_API + "/version" + bust, { cache: "no-store" }).then(function (r) { return r.json(); }); })
-      .then(function (j) {
-        if (!j || !j.version) return;
+    var sources = [PROD_VERSION_URL + bust, AUTH_API + "/version" + bust];
+    Promise.all(sources.map(function (url) {
+      return fetch(url, { cache: "no-store" }).then(function (r) { if (!r.ok) throw new Error("version source unavailable"); return r.json(); }).catch(function () { return null; });
+    })).then(function (rows) {
+        var valid = rows.filter(function (j) { return j && j.version; });
+        if (!valid.length) return;
+        var j = valid.reduce(function (best, row) {
+          var byVersion = verCmp(row.version, best.version);
+          var byCode = (parseInt(row.versionCode || 0, 10) || 0) - (parseInt(best.versionCode || 0, 10) || 0);
+          return byVersion > 0 || (byVersion === 0 && byCode > 0) ? row : best;
+        });
         var need = j.min || j.version;
         var needCode = parseInt(j.minVersionCode || j.versionCode || 0, 10) || 0;
         if (verCmp(VERSION, need) < 0 || (needCode > 0 && VERSION_CODE < needCode)) {
@@ -3976,7 +3982,6 @@
           renderForcedUpdate();
         }
       })
-      .catch(function () {})
       .then(function () { _forceUpdChecking = false; });
   }
   function renderForcedUpdate() {

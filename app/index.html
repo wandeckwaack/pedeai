@@ -531,8 +531,8 @@
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.13.3";
-  var VERSION_CODE = 59;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
+  var KEY = "pedeai.v2", VERSION = "4.13.4";
+  var VERSION_CODE = 60;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- logger de erros (silencioso -> backend -> erros_pedeai.log) ----------
@@ -1121,7 +1121,7 @@
       state.history = state.history.slice(0, 60);
     }
     state.day = { date: todayStr(), sales: [] };
-    try { if (state.cloud && state.cloud.code && typeof cloudPush === "function") setTimeout(function () { cloudPush(true); }, 400); } catch (e) {}
+    try { authBackupSoon(); } catch (e) {}   // fecha o dia -> backup na conta (automático)
   }
 
   // ---------- sincronização do estabelecimento (multi-tenant) ----------
@@ -1595,10 +1595,10 @@
     var minutes = Math.floor(seconds / 60);
     return minutes < 60 ? minutes + "min " + seconds % 60 + "s" : Math.floor(minutes / 60) + "h " + minutes % 60 + "min";
   }
+  // Histórico de conexão removido da UI — a tag Online/Offline no header basta.
+  // Mantém um registro enxuto em memória só pro reportError()/diagnóstico.
   function networkEvent(status, detail, extra) {
-    state.store.events = (state.store.events || []).concat([Object.assign({ at: Date.now(), status: status, detail: detail }, extra || {})]).slice(-100);
-    persist(false);
-    networkPaintDetails();
+    state.store.events = (state.store.events || []).concat([{ at: Date.now(), status: status, detail: detail }]).slice(-20);
   }
   function networkOffline(status, detail) {
     var first = !state.store.offlineSince, changed = state.store.status !== status;
@@ -1626,27 +1626,6 @@
   function networkLabel() {
     if (!storeLinked()) return navigator.onLine === false ? "Offline" : "Online";
     return { online: "Online", connecting: "Conectando…", off: "Pausado" }[state.store.status] || "Offline";
-  }
-  function networkPaintDetails() {
-    var b = document.getElementById("networkdetails");
-    if (!b) return;
-    var last = state.store.lastSuccessAt;
-    b.innerHTML = '<p>Estado: <b>' + networkLabel() + '</b></p><p>Última confirmação do estabelecimento: ' +
-      (last ? esc(new Date(last).toLocaleString("pt-BR")) : "Nenhuma") + '</p>' +
-      (state.store.offlineSince ? '<p>Offline desde ' + esc(new Date(state.store.offlineSince).toLocaleString("pt-BR")) + ' · ' + networkDuration(Date.now() - state.store.offlineSince) + '</p>' : '') +
-      (state.store.lastError ? '<p>' + esc(state.store.lastError) + '</p>' : '') +
-      '<p>Seus pedidos continuam salvos neste aparelho. Ao reconectar, a sincronização é automática.</p>' +
-      ((state.store.events || []).slice().reverse().map(function (e) {
-        return '<div class="cfg-row"><span>' + esc(new Date(e.at).toLocaleString("pt-BR")) + '<br>' + esc(e.detail) + '</span></div>';
-      }).join("") || '<p class="muted">Nenhuma ocorrência registrada.</p>');
-  }
-  function networkSheet() {
-    openSheet("Conexão e histórico", function (b) { b.innerHTML = '<div id="networkdetails"></div>'; }, function (f) {
-      var b = document.createElement("button"); b.id = "syncmanual"; b.className = "btn red block";
-      b.textContent = "Sincronizar Manualmente"; b.onclick = syncManual;
-      f.appendChild(b);
-    });
-    syncPaintDot();
   }
   function syncBackground() {
     syncBackgrounded = true;
@@ -2602,7 +2581,7 @@
         return '<button data-tab="' + t[0] + '" class="' + (t[0] === current ? "on" : "") + '"><span class="navic">' + ic(t[2], 23) + '</span><span>' + t[1] + '</span></button>';
       }).join("") + '</nav>');
     var tb = document.getElementById("topback"); if (tb) tb.onclick = goBack;
-    var networkButton = document.getElementById("networkstatus"); if (networkButton) networkButton.onclick = networkSheet;
+    // A tag "Online/Offline" no header é só visual — nada de folha de histórico.
     var sc = document.getElementById("staffchip"); if (sc && !kitchen) sc.onclick = switchUserSheet;
     var kx = document.getElementById("kexit"); if (kx) kx.onclick = leaveSheet;
     var nv = document.getElementById("nav");
@@ -2792,16 +2771,43 @@
       b.querySelector("#lp").onclick = function () { q = Math.min(99, q + 1); b.querySelector("#lq").textContent = q; };
     }, function (f) {
       var ok = document.createElement("button"); ok.className = "btn red block lg slab"; ok.textContent = "Salvar";
-      ok.onclick = function () { it.note = (scrim.querySelector("#lob").value || "").trim(); it.qty = q; touchItem(t, it); persist(); closeSheet(); renderView(); };
+      ok.onclick = function () {
+        it.note = (scrim.querySelector("#lob").value || "").trim();
+        var delta = q - it.qty;
+        if (delta > 0 && it.kitchen && it.done) { bumpItemQty(t, it, delta); }   // unidades novas -> linha pendente
+        else { it.qty = q; }
+        touchItem(t, it); persist(); closeSheet(); renderView();
+      };
       f.appendChild(ok);
       var rm = document.createElement("button"); rm.className = "btn danger block"; rm.style.marginTop = "8px"; rm.innerHTML = ic("trash", 18) + " Tirar da comanda";
       rm.onclick = function () { removeItem(t, it); persist(); closeSheet(); renderView(); };
       f.appendChild(rm);
     });
   }
+  // Aumentar a quantidade de um item de COZINHA JÁ MARCADO COMO PRONTO não pode
+  // só somar no total e manter o "pronto" — a cozinha nunca veria o pedido novo.
+  // As unidades novas entram como uma LINHA SEPARADA e PENDENTE (o que já foi
+  // feito não volta pra fila). Decremento e itens não-cozinha seguem normais.
+  function bumpItemQty(t, it, delta) {
+    delta = delta || 0;
+    if (delta > 0 && it.kitchen && it.done) {
+      var extra = t.items.find(function (x) { return x.menuId === it.menuId && (x.note || "") === (it.note || "") && x.kitchen && !x.done; });
+      if (extra) { extra.qty += delta; touchItem(t, extra); }
+      else {
+        var ni = { id: uid(), menuId: it.menuId, name: it.name, price: it.price, qty: delta,
+          kitchen: true, done: false, note: it.note || "", addedAt: Date.now(), updatedAt: Date.now() };
+        t.items.push(ni);
+        try { dropIds.push(ni.id); } catch (e) {}
+        touchTable(t);
+      }
+      return;
+    }
+    it.qty += delta;
+    if (it.qty <= 0) { removeItem(t, it); return; }
+    touchItem(t, it);
+  }
   function chgQty(t, it, d) {
-    it.qty += d; haptic(5); touchItem(t, it);
-    if (it.qty <= 0) removeItem(t, it);
+    haptic(5); bumpItemQty(t, it, d);
     persist(); renderView();
   }
   function repeatRound(t) {
@@ -2830,8 +2836,10 @@
           var btn = document.createElement("button"); btn.className = "pick";
           btn.innerHTML = '<div class="pn">' + esc(m.name) + '</div><div class="pp">' + money(m.price) + (m.kitchen ? " · cozinha" : "") + '</div>' + (ex ? '<span class="badge">' + ex.qty + '</span>' : '');
           btn.onclick = function () {
-            var e2 = t.items.find(function (x) { return x.menuId === m.id; });
-            if (e2) { e2.qty++; touchItem(t, e2); } else { var ni = { id: uid(), menuId: m.id, name: m.name, price: m.price, qty: 1, kitchen: !!m.kitchen, done: false, note: "", addedAt: Date.now(), updatedAt: Date.now() }; t.items.push(ni); dropIds.push(ni.id); touchTable(t); }
+            // Só agrupa numa linha que NÃO seja de cozinha já pronta.
+            var e2 = t.items.find(function (x) { return x.menuId === m.id && !(x.kitchen && x.done); });
+            if (e2) { bumpItemQty(t, e2, 1); }
+            else { var ni = { id: uid(), menuId: m.id, name: m.name, price: m.price, qty: 1, kitchen: !!m.kitchen, done: false, note: "", addedAt: Date.now(), updatedAt: Date.now() }; t.items.push(ni); dropIds.push(ni.id); touchTable(t); }
             persist(); haptic(6); beep(m.kitchen ? "kitchen" : "add"); toast(m.name + " +1"); paint();
           };
           pg.appendChild(btn);
@@ -3354,9 +3362,6 @@
       manual.disabled = (syncBusy && !syncBackgrounded) || Date.now() < syncManualLockUntil;
       s2.appendChild(manual);
     }
-    var reconnect = document.createElement("button"); reconnect.className = "btn ghost block";
-    reconnect.textContent = "Histórico de conexão"; reconnect.onclick = networkSheet;
-    s2.appendChild(reconnect);
     // Atendentes deste aparelho (atribuição local na comanda — não são contas).
     s2.insertAdjacentHTML("beforeend", '<div class="cfg-row" style="margin-top:8px"><span class="sub" style="font-size:12px">Quem atende por este aparelho (só pra marcar nas comandas):</span></div>');
     state.staff.forEach(function (st) {
@@ -3442,26 +3447,13 @@
       bt.onclick = function () { state.settings.printer.width = +bt.dataset.v; persist(); v.querySelectorAll("#pwSeg button").forEach(function (x) { x.classList.toggle("on", x === bt); }); haptic(6); };
     });
 
-    var s6 = document.createElement("div"); s6.className = "cfg-sec"; s6.innerHTML = '<h4>Dados e backup</h4>' +
-      '<div class="cfg-row"><span class="sub" style="font-size:12px">Os dados ficam neste aparelho. Faça backup pra não perder se o celular sumir — no arquivo ou na sua conta.</span></div>';
-    var ex = document.createElement("button"); ex.className = "cfg-row act"; ex.innerHTML = ic("box", 17) + " Exportar backup (arquivo)"; ex.onclick = exportBackup; s6.appendChild(ex);
-    var im = document.createElement("button"); im.className = "cfg-row act"; im.innerHTML = ic("undo", 17) + " Importar backup (arquivo)"; im.onclick = importBackup; s6.appendChild(im);
-    var cpu = document.createElement("button"); cpu.className = "cfg-row act";
-    cpu.innerHTML = ic("box", 17) + (state.cloud && state.cloud.code ? " Atualizar backup na nuvem" + (state.cloud.at ? ' <span class="sub">· ' + sinceLabel(state.cloud.at) + '</span>' : "") : " Backup na nuvem");
-    cpu.onclick = function () { cloudPush(false); }; s6.appendChild(cpu);
-    var cpl = document.createElement("button"); cpl.className = "cfg-row act"; cpl.innerHTML = ic("undo", 17) + " Restaurar da nuvem";
-    cpl.onclick = cloudPull; s6.appendChild(cpl);
-    if (state.cloud && state.cloud.code) {
-      s6.insertAdjacentHTML("beforeend", '<div class="cfg-row"><span class="sub" style="font-size:12px">Código da nuvem: <b class="mono">' + esc(state.cloud.code) + '</b> · PIN <b class="mono">' + esc(state.cloud.pin) + '</b> — anote num lugar seguro.</span></div>');
-    }
-    v.appendChild(s6);
-
+    // "Dados e backup" removido: com conta + sync o backup/restore é automático e
+    // transparente (não precisa exportar arquivo nem guardar código+PIN de nuvem).
 
     var ls = licState();
     var licTxt = ls === "unlocked" ? "Liberado (licença ativa)" : ls === "trial" ? "Teste grátis até " + (authUser && authUser.access && authUser.access.expiresAt ? new Date(authUser.access.expiresAt).toLocaleString("pt-BR") : licDaysLeft() + (licDaysLeft() > 1 ? " dias restantes" : " dia restante")) : ls === "expired" ? "Teste encerrado" : "Licença de outro aparelho";
     var s7 = document.createElement("div"); s7.className = "cfg-sec"; s7.innerHTML = '<h4>Licença</h4>' +
-      '<div class="cfg-row">Situação<span class="right muted">' + licTxt + '</span></div>' +
-      '<div class="cfg-row">ID deste aparelho<span class="right muted mono" style="font-size:12px">' + licShortId() + '</span></div>';
+      '<div class="cfg-row">Situação<span class="right muted">' + licTxt + '</span></div>';
     var adm = document.createElement("button"); adm.className = "cfg-row act"; adm.innerHTML = ic("user", 17) + " Administrador";
     adm.onclick = admLicense; s7.appendChild(adm);
     v.appendChild(s7);
@@ -3611,97 +3603,6 @@
         var dl = document.createElement("button"); dl.className = "btn danger block"; dl.style.marginTop = "8px"; dl.textContent = "Excluir item";
         dl.onclick = function () { state.menu = state.menu.filter(function (x) { return x.id !== m.id; }); touchCfg(); persist(); closeSheet(); openMenuEditor(); }; f.appendChild(dl);
       }
-    });
-  }
-
-  function exportBackup() {
-    var data = JSON.stringify(state);
-    var name = "pedeai-backup-" + todayStr() + ".json";
-    haptic(6);
-    try {
-      var file = new File([data], name, { type: "application/json" });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file], title: name }).catch(function () {}); return; }
-    } catch (e) {}
-    showTextSheet("Backup — copie e guarde", data);
-  }
-  function importBackup() {
-    openSheet("Importar backup", function (b) {
-      b.innerHTML = '<p class="muted" style="font-size:13px;margin-bottom:8px">Cole um backup do PedeAí. Isso substitui tudo que está neste aparelho.</p>' +
-        '<textarea class="search" id="imt" style="height:180px;font-family:monospace;font-size:11px" placeholder="Cole aqui o texto do backup"></textarea>';
-      setTimeout(function () { b.querySelector("#imt").focus(); }, 60);
-    }, function (f) {
-      var ok = document.createElement("button"); ok.className = "btn red block lg slab"; ok.textContent = "Restaurar";
-      ok.onclick = function () {
-        var raw = (scrim.querySelector("#imt").value || "").trim();
-        if (!raw) { toast("Cole o backup"); return; }
-        var p; try { p = JSON.parse(raw); } catch (e) { toast("Backup inválido"); return; }
-        if (!p || typeof p !== "object" || !("menu" in p) || !("staff" in p)) { toast("Backup inválido"); return; }
-        confirmDialog("Substituir todos os dados deste aparelho pelo backup?", "Restaurar", function () {
-          state = p; migrate(); persist(); closeSheet();
-          flow = state.setup ? "app" : "welcome"; current = "mesas"; openTableId = null; renderAll(); toast("Backup restaurado");
-        }, true);
-      };
-      f.appendChild(ok);
-    });
-  }
-
-  // ---------- backup na nuvem (leve: 1 blob por código+PIN no servidor de sync) ----------
-  function vaultCode() { var s = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", o = ""; for (var i = 0; i < 6; i++) o += s[Math.floor(Math.random() * s.length)]; return o; }
-  function cloudPush(silent) {
-    if (isDemo()) { if (!silent) toast("Modo demonstração não faz backup"); return; }
-    if (!state.cloud || !state.cloud.code) { state.cloud = { code: vaultCode(), pin: ("" + (1000 + Math.floor(Math.random() * 9000))) }; persist(); }
-    var blob = JSON.stringify(state);
-    if (blob.length > 900000) { if (!silent) toast("Backup grande demais pra nuvem (tire a logo)"); return; }
-    fetch(syncBase() + "/vault", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: state.cloud.code, pin: state.cloud.pin, blob: blob }) })
-      .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
-      .then(function () {
-        state.cloud.at = Date.now(); persist();
-        if (!silent) cloudCodeSheet();
-        else toast("Backup na nuvem atualizado");
-      })
-      .catch(function () { if (!silent) toast("Sem conexão pra salvar na nuvem"); });
-  }
-  function cloudCodeSheet() {
-    openSheet("Backup na nuvem", function (b) {
-      b.innerHTML = '<p class="muted" style="font-size:13px;margin-bottom:12px">Guardado. Pra restaurar em qualquer aparelho, use o código e o PIN abaixo. <b>Anote</b> — sem eles não dá pra recuperar.</p>' +
-        '<div class="paircode"><span>Código</span><b class="mono">' + esc(state.cloud.code) + '</b></div>' +
-        '<div class="paircode"><span>PIN</span><b class="mono">' + esc(state.cloud.pin) + '</b></div>' +
-        '<p class="muted" style="font-size:12px;margin-top:12px">Atualize o backup de vez em quando (Ajustes › Dados e backup). É atualizado sozinho quando você fecha o dia.</p>';
-    }, function (f) {
-      var c = document.createElement("button"); c.className = "btn red block lg slab"; c.textContent = "Copiar código e PIN";
-      c.onclick = function () { var s = "PedeAí backup — Código: " + state.cloud.code + "  PIN: " + state.cloud.pin; try { navigator.clipboard.writeText(s); toast("Copiado"); } catch (e) { showTextSheet("Backup na nuvem", s); } };
-      f.appendChild(c);
-    });
-  }
-  function cloudPull() {
-    openSheet("Restaurar da nuvem", function (b) {
-      b.innerHTML = '<p class="muted" style="font-size:13px;margin-bottom:8px">Digite o código e o PIN do backup. Isso substitui tudo neste aparelho.</p>' +
-        '<label class="field"><span>Código</span><input id="vc" autocapitalize="characters" maxlength="6" placeholder="ABC123" style="text-transform:uppercase;letter-spacing:.28em;font-family:monospace"></label>' +
-        '<label class="field pinrow"><span>PIN</span><input id="vp" inputmode="numeric" maxlength="8" placeholder="0000"></label>';
-      setTimeout(function () { b.querySelector("#vc").focus(); }, 60);
-    }, function (f) {
-      var ok = document.createElement("button"); ok.className = "btn red block lg slab"; ok.textContent = "Restaurar";
-      ok.onclick = function () {
-        var code = (scrim.querySelector("#vc").value || "").trim().toUpperCase().replace(/[^A-Z2-9]/g, "");
-        var pin = (scrim.querySelector("#vp").value || "").replace(/\D/g, "");
-        if (code.length < 4 || pin.length < 4) { toast("Código e PIN"); return; }
-        ok.disabled = true; ok.textContent = "Buscando…";
-        fetch(syncBase() + "/vault", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: code, pin: pin, get: 1 }) })
-          .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
-          .then(function (res) {
-            var p; try { p = JSON.parse(res.blob); } catch (e) { throw e; }
-            if (!p || !("menu" in p) || !("staff" in p)) throw new Error("bad");
-            closeSheet();
-            confirmDialog("Substituir todos os dados deste aparelho pelo backup da nuvem?", "Restaurar", function () {
-              state = p; state.cloud = { code: code, pin: pin, at: Date.now() }; migrate(); persist();
-              flow = state.setup ? "app" : "welcome"; current = "mesas"; openTableId = null; renderAll(); toast("Restaurado da nuvem");
-            }, true);
-          })
-          .catch(function (err) { ok.disabled = false; ok.textContent = "Restaurar"; toast(err === 403 ? "PIN errado" : err === 404 ? "Código não encontrado" : "Não consegui buscar"); });
-      };
-      f.appendChild(ok);
     });
   }
 

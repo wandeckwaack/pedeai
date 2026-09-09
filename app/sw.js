@@ -1,6 +1,6 @@
 /* PedeAí — cache somente do aplicativo. APIs e mutações sempre usam a rede.
    O cache existente permanece disponível durante quedas e atualizações. */
-var CACHE = "pedeai-v3-8";
+var CACHE = "pedeai-v3-9";
 var SCOPE = new URL(self.registration.scope);
 var ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg", "./icon-maskable.svg"];
 var INDEX = new URL("./index.html", SCOPE).href;
@@ -47,7 +47,7 @@ self.addEventListener("activate", function (e) {
 self.addEventListener("fetch", function (e) {
   var req = e.request, url = new URL(req.url);
   if (req.method !== "GET" || url.origin !== SCOPE.origin || !url.pathname.startsWith(SCOPE.pathname) ||
-      /\/(api|sync|beat|health|vault|auth)(\/|$)/i.test(url.pathname)) return;
+      /\/(api|sync|beat|health|vault|auth|log|errlog)(\/|$)/i.test(url.pathname)) return;
   if (isDoc(req)) {
     e.respondWith(network(req).then(function (res) {
       if (!cacheable(res, true)) throw Error("Documento indisponível");

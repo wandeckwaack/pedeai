@@ -172,6 +172,13 @@
   .btn .ic { width: 21px; height: 21px; }
   .btn:disabled { opacity: .4; }
   .btn.is-loading { opacity: .55; cursor: progress; pointer-events: none; }
+  #reconnbar { position: fixed; left: 0; right: 0; top: 0; z-index: 60; display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-size: 12.5px; font-weight: 800; letter-spacing: .02em; padding: 6px 12px calc(6px + env(safe-area-inset-top, 0px));
+    background: #b26a00; color: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.28); transform: translateY(-110%); transition: transform .22s ease; }
+  #reconnbar.on { transform: translateY(0); }
+  #reconnbar .spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; animation: reconnspin .8s linear infinite; }
+  @keyframes reconnspin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { #reconnbar { transition: none; } #reconnbar .spin { animation: none; } }
   .btn.slab { font-family: "Anton", sans-serif; text-transform: uppercase; letter-spacing: .03em; font-weight: 400; font-size: 19px; }
 
   .muted { color: var(--bone-dim); }
@@ -526,8 +533,67 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.11.2";
+  var KEY = "pedeai.v2", VERSION = "4.12.0";
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---------- logger de erros (silencioso -> backend -> erros_pedeai.log) ----------
+  // Captura window.onerror, promessas rejeitadas, falhas de sync e de armazenamento.
+  // Envia por sendBeacon (não bloqueia, sobrevive ao fechamento da aba). Deduplica
+  // por assinatura (60s) e limita o volume por sessão. Nunca lança.
+  var LOG_FALLBACK_HOST = "https://deckk.duckdns.org";
+  var _logSeen = {}, _logCount = 0, _LOG_MAX = 50;
+  function _logHost() {
+    try { if (typeof syncBase === "function") { var b = syncBase(); if (/^https?:\/\//.test(b)) return b; } } catch (e) {}
+    return LOG_FALLBACK_HOST;
+  }
+  function _logRole() {
+    try {
+      if (window.state && state.sync && state.sync.room) return state.sync.role || "full";
+      if (typeof activeRole === "function") return activeRole() || "solo";
+    } catch (e) {}
+    return "solo";
+  }
+  function reportError(kind, info) {
+    try {
+      if (_logCount >= _LOG_MAX) return;
+      info = info || {};
+      var msg = String(info.message != null ? info.message : (info.reason != null ? info.reason : info)).slice(0, 700);
+      var stack = String(info.stack || (info.reason && info.reason.stack) || "").slice(0, 2400);
+      var sig = kind + "|" + msg + "|" + (stack.split("\n")[1] || "").trim();
+      var now = Date.now();
+      if (_logSeen[sig] && now - _logSeen[sig] < 60000) return;
+      _logSeen[sig] = now; _logCount++;
+      var payload = {
+        kind: String(kind || "erro").slice(0, 40), msg: msg, stack: stack,
+        v: VERSION, role: _logRole(),
+        room: (window.state && state.sync && state.sync.room) ? String(state.sync.room) : "",
+        url: (location && location.pathname) || "",
+        ua: (navigator.userAgent || "").slice(0, 300),
+        online: navigator.onLine !== false, at: now
+      };
+      var raw = JSON.stringify(payload), url = _logHost() + "/log", done = false;
+      // text/plain evita preflight CORS (sendBeacon não faz preflight); o backend
+      // faz o parse do corpo como JSON de qualquer forma.
+      try {
+        if (navigator.sendBeacon) done = navigator.sendBeacon(url, new Blob([raw], { type: "text/plain" }));
+      } catch (e) {}
+      if (!done) {
+        try { fetch(url, { method: "POST", headers: { "Content-Type": "text/plain" }, body: raw, keepalive: true, cache: "no-store", mode: "cors" }).catch(function () {}); } catch (e) {}
+      }
+    } catch (e) { /* logger nunca derruba o app */ }
+  }
+  window.addEventListener("error", function (e) {
+    var m = (e && e.message) || "";
+    if (/^Script error\.?$/.test(m) || /ResizeObserver loop/.test(m)) return; // ruído do browser
+    reportError("window.onerror", {
+      message: m || "erro sem mensagem",
+      stack: (e && e.error && e.error.stack) || ((e && e.filename || "?") + ":" + (e && e.lineno) + ":" + (e && e.colno))
+    });
+  }, true);
+  window.addEventListener("unhandledrejection", function (e) {
+    var r = e && e.reason;
+    reportError("unhandledrejection", { message: (r && (r.message || r)) || "promessa rejeitada sem motivo", stack: r && r.stack });
+  });
 
   // ---------- licença / período de teste (15 dias) ----------
   // Cada aparelho ganha 15 dias. Depois disso, uma licença assinada libera. "MAC do aparelho" no Android não é acessível a apps
@@ -609,10 +675,14 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       if (authUser.access.status === "suspended") return "blocked";
       return "expired";
     }
+    // Conta temporariamente inacessível (offline / servidor fora) mas o app já
+    // está configurado: cai na licença LOCAL (relógio do teste continua valendo)
+    // em vez de jogar o usuário num bloqueio no meio do expediente.
+    var offlineGrace = !!(state && state.setup) && !!authToken && (authSessionUnavailable || navigator.onLine === false);
     // Fora da demonstração, uma conta sem sessão/autorização nunca recebe
     // teste automático nem licença local. A liberação precisa vir do backend.
-    if (!authUser || !authUser.access) return "pending";
-    if (!lic) return "pending";
+    if ((!authUser || !authUser.access) && !offlineGrace) return "pending";
+    if (!lic) return offlineGrace ? "trial" : "pending";
     if (licenseVerified) return "unlocked";
     if (licDeviceId !== "web" && lic.deviceId && lic.deviceId !== licDeviceId) return "tamper";
     return licDaysLeft() > 0 ? "trial" : "expired";
@@ -632,7 +702,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   var authSessionUnavailable = false, authSessionBusy = false, authSessionTimer = null, authSessionAttempt = 0;
   var appLocked = false, appLockBusy = false, appWasBackgrounded = false;
   function authPlugin(name) { try { return window.Capacitor && Capacitor.Plugins && Capacitor.Plugins[name]; } catch (e) { return null; } }
-  async function authStoreToken(token) { var s = authPlugin("SecureStorage"); try { if (s && s.set) return await s.set("pedeai.auth.token", token); } catch (e) {} try { localStorage.setItem("pedeai.auth.token", token); } catch (e) {} }
+  async function authStoreToken(token) { var s = authPlugin("SecureStorage"); try { if (s && s.set) return await s.set("pedeai.auth.token", token); } catch (e) { reportError("storage", { message: "SecureStorage.set falhou: " + (e && e.message || e), stack: e && e.stack }); } try { localStorage.setItem("pedeai.auth.token", token); } catch (e) { reportError("storage", { message: "localStorage token falhou: " + (e && e.message || e), stack: e && e.stack }); } }
   async function authLoadToken() { var s = authPlugin("SecureStorage"); try { if (s && s.get) { var v = await s.get("pedeai.auth.token"); if (v) return String(v); } } catch (e) {} try { return localStorage.getItem("pedeai.auth.token") || ""; } catch (e) { return ""; } }
   function authHeaders() { return authToken ? { "Content-Type": "application/json", "Authorization": "Bearer " + authToken } : { "Content-Type": "application/json" }; }
   async function authApi(path, method, body) {
@@ -653,7 +723,10 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       clearTimeout(authSessionTimer); return true;
     } catch (e) {
       if (authToken !== token) return false;
-      authSessionUnavailable = !e.status || e.status >= 500 || e.status === 408 || e.status === 429;
+      var transient = !e.status || e.status >= 500 || e.status === 408 || e.status === 429;
+      // Se o app JÁ está configurado, qualquer falha vira "reconectar" — nunca
+      // derruba pro login no meio do expediente. Só authLogout() encerra a sessão.
+      authSessionUnavailable = transient || !!(state && state.setup);
       if (authSessionUnavailable) {
         clearTimeout(authSessionTimer);
         authSessionTimer = setTimeout(authResumeSession, Math.max(networkBackoff(++authSessionAttempt), e.retryAfter || 0));
@@ -688,12 +761,15 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
         toast("Teste grátis de 15 dias · válido até " + new Date(authUser.access.expiresAt).toLocaleString("pt-BR"));
       }
     } catch (e) {
-      authSessionUnavailable = !e.status || e.status >= 500 || e.status === 408 || e.status === 429;
+      var transient = !e.status || e.status >= 500 || e.status === 408 || e.status === 429;
+      authSessionUnavailable = transient || !!(state && state.setup);
       authReady = false;
       if (authSessionUnavailable && authToken) {
         clearTimeout(authSessionTimer);
         authSessionTimer = setTimeout(authResumeSession, Math.max(networkBackoff(++authSessionAttempt), e.retryAfter || 0));
-        renderSessionWaiting();
+        // App já configurado: fica na comanda com "Reconectando…"; só a tela de
+        // espera quando ainda não há nada configurado pra mostrar.
+        if (state && state.setup) { flow = "app"; renderAll(); } else renderSessionWaiting();
       } else renderAuthGate("loginEmail", e.message || "Não foi possível confirmar a sessão. Entre novamente.");
     }
   }
@@ -968,7 +1044,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   if (!state || typeof state.setup === "undefined") state = blankState();
   migrate();
   if (state.setup && state.day.date !== todayStr()) archiveDay();
-  function persist(sendBackup) { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} if (sendBackup !== false) authBackupSoon(); }
+  function persist(sendBackup) { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { reportError("storage", { message: "falha ao salvar estado local: " + (e && e.message || e), stack: e && e.stack }); } if (sendBackup !== false) authBackupSoon(); }
 
   function migrate() {
     if (!state.settings) state.settings = {};
@@ -1035,7 +1111,14 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     t.items = t.items.filter(function (x) { return x.id !== it.id; }); touchTable(t);
   }
   function touchCfg() { if (state.sync) state.sync.cfgAt = Date.now(); }
-  function tombTable(id) { if (state.sync) { state.sync.tomb = state.sync.tomb || {}; state.sync.tomb[id] = Date.now(); } }
+  function tombTable(id) {
+    if (!state.sync) return;
+    var now = Date.now();
+    state.sync.tomb = state.sync.tomb || {}; state.sync.tomb[id] = now;
+    // Marca como pendente até o servidor confirmar o recebimento — enquanto isso,
+    // o merge não deixa o servidor "ressuscitar" esta mesa.
+    state.sync._tombPending = state.sync._tombPending || {}; state.sync._tombPending[id] = now;
+  }
   function roomCode() { var s = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", o = ""; for (var i = 0; i < 6; i++) o += s[Math.floor(Math.random() * s.length)]; return o; }
   function pinCode() { var o = ""; for (var i = 0; i < 6; i++) o += Math.floor(Math.random() * 10); return o; }
   // F3 (auditoria): "prova de criação" — só quem criou a sala tem esta chave; o
@@ -1140,6 +1223,16 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     var before = syncSig();
     var tomb = Object.assign({}, state.sync.tomb || {});
     Object.keys(res.tomb || {}).forEach(function (id) { tomb[id] = Math.max(tomb[id] || 0, res.tomb[id]); });
+    // O servidor é a autoridade sobre quais mesas estão vivas: ele já aplicou os
+    // tombstones no merge dele. Se uma mesa voltou na resposta, um tombstone local
+    // obsoleto (relógio adiantado, sobra de sessão antiga) NÃO pode escondê-la.
+    // Exceção: tombstone feito aqui e ainda não confirmado pelo servidor (_tombPending).
+    var pending = state.sync._tombPending || {};
+    (res.tables || []).forEach(function (srv) {
+      if (srv && srv.id && tomb[srv.id] && !pending[srv.id]) {
+        delete tomb[srv.id];
+      }
+    });
     state.tables = syncMergeTables(res.tables || [], tomb);
     state.sync.tomb = tomb;
     if (res.day && res.day.date) {
@@ -1226,6 +1319,13 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       if (!res || !res.ok || !Array.isArray(res.tables) || (res.pong !== undefined && res.pong !== ping)) throw Error("Resposta inválida da sincronização");
       // Servidores anteriores não devolvem pong; a resposta válida do /sync
       // continua sendo a confirmação, sem exigir novo pareamento.
+      // Os tombstones que foram no corpo desta requisição já chegaram ao servidor —
+      // saem da fila "pendente" e deixam de mascarar mesas que o servidor mantém vivas.
+      if (state.sync._tombPending) {
+        Object.keys(state.sync._tombPending).forEach(function (id) {
+          if (state.sync._tombPending[id] <= request.startedAt) delete state.sync._tombPending[id];
+        });
+      }
       var beforeSnap = notifSnapshot(), changed = syncMerge(res), previousPeers = syncPeers.slice();
       state.sync.needCreate = false;
       syncFailures = 0; syncRetryAt = 0; syncRetryStatus = 0;
@@ -1241,21 +1341,29 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
         if (joined.length) toast("Aparelho pareado: " + joined.map(syncRoleLabel).join(", "));
       }
       if (_notifReady) notifCheck(beforeSnap, notifSnapshot()); else _notifReady = true;
-      if (changed && flow === "app" && !scrim) renderApp(); else notifPaint();
+      // Reconectou: re-renderiza a comanda mesmo que o sig não tenha mudado, pra
+      // limpar a faixa "Reconectando…" e refletir o estado baixado do servidor.
+      if ((changed || recovered) && flow === "app" && !scrim) renderApp(); else notifPaint();
+      paintReconnBar();
       return true;
     }).catch(function (err) {
       if (!currentRequest()) return false;
       syncFailures++;
       delay = networkBackoff(syncFailures);
       var status = err.status || 0;
-      // Credenciais incorretas e limites do servidor não entram no retry rápido.
-      if (status >= 400 && status < 500) delay = status === 429 ? 600000 : 60000;
-      delay = Math.max(delay, err.retryAfter || 0);
+      // Reconexão silenciosa e infinita: nada estaciona o aparelho. 429 respeita o
+      // Retry-After (teto 60s); os outros seguem no backoff exponencial (teto ~15s).
+      if (status === 429) delay = Math.min(60000, Math.max(delay, err.retryAfter || 15000));
+      else delay = Math.max(delay, err.retryAfter || 0);
       syncRetryAt = Date.now() + delay; syncRetryStatus = status;
       var next = status === 401 || status === 403 ? "badpin" : status === 404 ? "noroom" : "offline";
-      var message = next === "badpin" ? "Acesso à sala recusado: confira o PIN e a função" : next === "noroom" ? "Sala indisponível; dados locais preservados" :
-        status === 429 ? "Servidor pediu uma pausa; tentaremos novamente automaticamente" : "Sem conexão com a sala: pedidos preservados neste aparelho";
+      var message = next === "badpin" ? "Reconectando à sala…" : next === "noroom" ? "Reconectando à sala…" :
+        status === 429 ? "Servidor pediu uma pausa; reconectando automaticamente" : "Reconectando à sala…";
       networkOffline(next, message);
+      // Só falhas de servidor / rede desconhecida viram log (4xx são esperados).
+      if (!(status >= 400 && status < 500)) {
+        reportError("sync", { message: "sync falhou (" + (status || "sem status") + "): " + (err && err.message || err), stack: err && err.stack });
+      }
       return false;
     }).finally(function () {
       if (syncRequest !== request) return;
@@ -1297,14 +1405,16 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     syncLeavePresence(snapshot);
     return snapshot;
   }
-  function syncKick(manual) {
+  function syncKick(manual, force) {
     if (!syncActive()) return Promise.resolve(false);
-    if (syncRetryStatus >= 400 && Date.now() < syncRetryAt) {
+    // force = retomada iniciada pelo usuário (voltou pro app, rede voltou): fura
+    // qualquer trava de retry e reconecta na hora.
+    if (!force && syncRetryStatus >= 400 && Date.now() < syncRetryAt) {
       if (manual) toast("Nova tentativa em " + networkDuration(syncRetryAt - Date.now()));
       syncSchedule(syncRetryAt - Date.now()); return Promise.resolve(false);
     }
     if (syncRequest && !syncBackgrounded && Date.now() - syncRequest.startedAt < SYNC_TIMEOUT_MS) return syncRequest.promise;
-    if (!manual && Date.now() - syncLastKick < 750) return Promise.resolve(false);
+    if (!manual && !force && Date.now() - syncLastKick < 750) return Promise.resolve(false);
     syncLastKick = Date.now(); syncBackgrounded = false;
     syncCancelRequest(); syncFailures = 0; syncRetryAt = 0; syncRetryStatus = 0;
     if (navigator.onLine !== false) state.sync.status = "connecting";
@@ -1405,38 +1515,40 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   }
   function syncResume(nativeActive) {
     if (document.hidden && nativeActive !== true) return;
-    syncKick(false); syncPaintDot(); wakeLockMaybe();
+    syncKick(false, true); syncPaintDot(); paintReconnBar(); wakeLockMaybe();
     authResumeSession(); updBeat(false);
     if (appWasBackgrounded) { appWasBackgrounded = false; appLockCheck(); }
   }
-  window.addEventListener("online", function () { syncKick(false); authResumeSession(); syncPaintDot(); });
+  window.addEventListener("online", function () { syncKick(false, true); authResumeSession(); syncPaintDot(); paintReconnBar(); });
   window.addEventListener("offline", function () {
-    if (syncActive()) { syncCancelRequest(); networkOffline("offline", "Sem rede: pedidos preservados neste aparelho"); syncSchedule(SYNC_RETRY_MAX_MS); }
+    if (syncActive()) { syncCancelRequest(); networkOffline("offline", "Reconectando à sala…"); syncSchedule(SYNC_RETRY_MAX_MS); }
     else syncPaintDot();
+    paintReconnBar();
   });
   document.addEventListener("visibilitychange", function () { if (document.hidden) syncBackground(); else syncResume(); });
   window.addEventListener("pageshow", syncResume);
-  window.addEventListener("pagehide", function (e) {
-    syncBackground();
-    // Fechou de verdade (não foi pro bfcache): avisa o servidor pra este aparelho
-    // sumir do painel na hora, sem esperar o TTL de presença fantasma expirar.
-    if (!e.persisted && syncPaired()) { try { syncLeavePresence(Object.assign({}, state.sync || {})); } catch (err) {} }
-  });
+  // pagehide NÃO manda "leave": em iOS/PWA ele dispara ao bloquear a tela / trocar
+  // de app, e um "leave" aí faz o aparelho piscar como desconectado à toa. A
+  // presença fantasma é resolvida pelo TTL de 45s do servidor; "leave" só sai em
+  // ação explícita (desconectar / trocar papel / sair da conta).
+  window.addEventListener("pagehide", syncBackground);
   document.addEventListener("freeze", syncBackground);
   document.addEventListener("resume", syncResume);
   // Cão de guarda de conexão fantasma: o status ficou "online" mas o poll parou de
   // trazer pong (timer perdido, engine congelada e retomada torta, socket zumbi).
-  // Sem request em voo e sem pong há SYNC_PHANTOM_MS -> derruba e reconecta.
+  // Sem request em voo e sem pong há SYNC_PHANTOM_MS -> reconecta em silêncio.
+  // NUNCA mexe em `flow`/tela — só reagenda o sync.
   setInterval(function () {
     try {
-      if (!syncActive() || document.hidden || syncRequest) return;
+      if (!syncActive() || document.hidden || syncRequest || navigator.onLine === false) return;
       if ((state.sync.status || "") !== "online") return;
       var ref = state.sync.lastPongAt || state.sync.lastSuccessAt || 0;
       if (!ref || Date.now() - ref <= SYNC_PHANTOM_MS) return;
-      networkEvent("phantom", "Conexão fantasma: sem resposta há " + networkDuration(Date.now() - ref));
+      networkEvent("phantom", "Sem resposta há " + networkDuration(Date.now() - ref) + " · reconectando");
       syncCancelRequest();
-      networkOffline("offline", "Conexão inativa detectada; reconectando…");
-      syncKick(false);
+      networkOffline("offline", "Reconectando à sala…");
+      syncKick(false, true);
+      paintReconnBar();
     } catch (err) {}
   }, 7000);
   // mantém a tela acesa quando o aparelho é o painel da cozinha (pra não pausar o sync)
@@ -1448,6 +1560,23 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
         if (_wake) return;
         navigator.wakeLock.request("screen").then(function (w) { _wake = w; w.addEventListener("release", function () { _wake = null; }); }).catch(function () {});
       } else if (_wake) { _wake.release().catch(function () {}); _wake = null; }
+    } catch (e) {}
+  }
+  // Faixa "Reconectando…" — não bloqueante, nunca tira o usuário da comanda.
+  function paintReconnBar() {
+    try {
+      var bar = document.getElementById("reconnbar");
+      if (!bar) {
+        bar = document.createElement("div"); bar.id = "reconnbar";
+        bar.innerHTML = '<span class="spin"></span><span id="reconnbartxt">Reconectando…</span>';
+        (document.body || document.documentElement).appendChild(bar);
+      }
+      var syncBad = syncPaired() && ["offline", "connecting", "badpin", "noroom"].indexOf(state.sync.status || "") >= 0;
+      var sessionBad = !!authToken && !authReady && !!state.setup && typeof isDemo === "function" && !isDemo();
+      var show = (flow === "app") && (syncBad || sessionBad) && navigator.onLine !== false || (flow === "app" && navigator.onLine === false && (syncPaired() || state.setup));
+      var txt = document.getElementById("reconnbartxt");
+      if (txt) txt.textContent = navigator.onLine === false ? "Sem internet · seus dados estão salvos aqui" : "Reconectando…";
+      bar.classList.toggle("on", !!show);
     } catch (e) {}
   }
   function syncPaintDot() {
@@ -1464,6 +1593,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       var b = document.getElementById(id); if (b) b.disabled = !!syncManualPromise || syncBusy || !syncPaired();
     });
     var status = document.getElementById("networkcfgstatus"); if (status) status.textContent = networkLabel();
+    paintReconnBar();
   }
 
   // ---------- avisos de integração (garçom ⇄ cozinha ⇄ caixa) ----------
@@ -1888,7 +2018,13 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     closeSheet(true);
     applyTheme();
     if (appLocked) return renderAppLock();
-    if (!authReady && flow !== "welcome" && !isDemo()) return authToken && authSessionUnavailable ? renderSessionWaiting() : renderAuthGate("choose");
+    if (!authReady && flow !== "welcome" && !isDemo()) {
+      // Dispositivo já configurado com sessão salva: NUNCA sai da comanda por falha
+      // de rede/sessão. Opera com os dados locais; a conta revalida em 2º plano
+      // (backoff infinito) e a faixa "Reconectando…" avisa. Só authLogout() volta ao login.
+      if (authToken && state.setup) { paintReconnBar(); }
+      else return authToken && authSessionUnavailable ? renderSessionWaiting() : renderAuthGate("choose");
+    }
     if (flow === "welcome") return renderWelcome();
     if (isDemo() && flow === "tutorial") return renderTutorial();
     if (isDemo() && flow === "app") return renderApp();
@@ -3572,7 +3708,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   // Só no modo PWA (site). Dentro do APK (Capacitor) os arquivos já vêm no pacote —
   // um SW aqui só arriscaria servir versão velha depois de atualizar o app.
   if (!window.Capacitor && "serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
-    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js?v=auto-7").catch(function () {}); });
+    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js?v=auto-7").catch(function (e) { reportError("serviceworker", { message: "registro do SW falhou: " + (e && e.message || e), stack: e && e.stack }); }); });
   } else if (window.Capacitor && "serviceWorker" in navigator) {
     // Desativa apenas o SW deste app no APK, preservando os caches existentes.
     try {

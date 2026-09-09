@@ -791,7 +791,32 @@
       '<button class="btn bone block" id="sessionretry">Tentar conexão agora</button></div></div></div>';
     document.getElementById("sessionretry").onclick = authResumeSession;
   }
-  async function authRestore() { if (state.setup) return; try { var j = await authApi("/restore"); if (!j.blob || state.setup) return; var saved = JSON.parse(j.blob); if (saved && saved.setup !== undefined && (!state.cloudAuthAt || !j.updatedAt || j.updatedAt > state.cloudAuthAt)) { state = saved; state.cloudAuthAt = j.updatedAt || new Date().toISOString(); migrate(); persist(false); toast("Dados restaurados da sua conta"); } } catch (e) {} }
+  // A demonstração é um estado local descartável. Depois que a conta autentica,
+  // ela nunca deve continuar como se fosse o estabelecimento do usuário nem
+  // bloquear a restauração do backup da conta.
+  function discardDemoAfterAuth() {
+    if (!isDemo()) return false;
+    demoGuide = null; try { coachRemove(); } catch (e) {}
+    state = blankState(); migrate(); flow = "tutorial"; current = "mesas"; openTableId = null;
+    tut = { step: 1, choppQty: 0 }; persist(false);
+    return true;
+  }
+  async function authRestore() {
+    var discardedDemo = discardDemoAfterAuth();
+    if (state.setup && !discardedDemo) return;
+    try {
+      var j = await authApi("/restore");
+      if (!j.blob) return;
+      var saved = JSON.parse(j.blob);
+      if (saved && saved.setup !== undefined && (!state.cloudAuthAt || !j.updatedAt || j.updatedAt > state.cloudAuthAt)) {
+        state = saved; state.cloudAuthAt = j.updatedAt || new Date().toISOString(); migrate(); persist(false); toast("Dados restaurados da sua conta");
+        if (discardedDemo) {
+          if (state.setup) flow = "app";
+          else { flow = "tutorial"; tut = { step: 1, choppQty: 0 }; }
+        }
+      }
+    } catch (e) {}
+  }
   function authBackupSoon() { if (!authReady || !authToken) return; clearTimeout(authBackupTimer); authBackupTimer = setTimeout(function () { authApi("/backup", "POST", { blob: JSON.stringify(state) }).then(function (j) { if (j && j.updatedAt) { state.cloudAuthAt = j.updatedAt; try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} } }).catch(function () {}); }, 250); }
   async function authAfterLogin() {
     try {

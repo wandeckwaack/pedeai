@@ -526,14 +526,12 @@
 <div id="app"></div>
 
 <script>
-/* qrcode-generator 1.4.4 (MIT, Kazuhiko Arase) — gera QR do pareamento */
-var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=new Array(t),e=0;e<t;e+=1){r[e]=new Array(t);for(var n=0;n<t;n+=1)r[e][n]=null}return r}(l=4*u+17),e(0,0),e(l-7,0),e(0,l-7),i(),o(),v(t,r),7<=u&&h(t),null==n&&(n=w(u,f,c)),d(n,r)}var u=t,f=y[r],g=null,l=0,n=null,c=[],s={},e=function(t,r){for(var e=-1;e<=7;e+=1)if(!(t+e<=-1||l<=t+e))for(var n=-1;n<=7;n+=1)r+n<=-1||l<=r+n||(g[t+e][r+n]=0<=e&&e<=6&&(0==n||6==n)||0<=n&&n<=6&&(0==e||6==e)||2<=e&&e<=4&&2<=n&&n<=4)},o=function(){for(var t=8;t<l-8;t+=1)null==g[t][6]&&(g[t][6]=t%2==0);for(var r=8;r<l-8;r+=1)null==g[6][r]&&(g[6][r]=r%2==0)},i=function(){for(var t=B.getPatternPosition(u),r=0;r<t.length;r+=1)for(var e=0;e<t.length;e+=1){var n=t[r],o=t[e];if(null==g[n][o])for(var i=-2;i<=2;i+=1)for(var a=-2;a<=2;a+=1)g[n+i][o+a]=-2==i||2==i||-2==a||2==a||0==i&&0==a}},h=function(t){for(var r=B.getBCHTypeNumber(u),e=0;e<18;e+=1){var n=!t&&1==(r>>e&1);g[Math.floor(e/3)][e%3+l-8-3]=n}for(e=0;e<18;e+=1){n=!t&&1==(r>>e&1);g[e%3+l-8-3][Math.floor(e/3)]=n}},v=function(t,r){for(var e=f<<3|r,n=B.getBCHTypeInfo(e),o=0;o<15;o+=1){var i=!t&&1==(n>>o&1);o<6?g[o][8]=i:o<8?g[o+1][8]=i:g[l-15+o][8]=i}for(o=0;o<15;o+=1){i=!t&&1==(n>>o&1);o<8?g[8][l-o-1]=i:o<9?g[8][15-o-1+1]=i:g[8][15-o-1]=i}g[l-8][8]=!t},d=function(t,r){for(var e=-1,n=l-1,o=7,i=0,a=B.getMaskFunction(r),u=l-1;0<u;u-=2)for(6==u&&(u-=1);;){for(var f=0;f<2;f+=1)if(null==g[n][u-f]){var c=!1;i<t.length&&(c=1==(t[i]>>>o&1)),a(n,u-f)&&(c=!c),g[n][u-f]=c,-1==(o-=1)&&(i+=1,o=7)}if((n+=e)<0||l<=n){n-=e,e=-e;break}}},w=function(t,r,e){for(var n=b.getRSBlocks(t,r),o=M(),i=0;i<e.length;i+=1){var a=e[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var u=0;for(i=0;i<n.length;i+=1)u+=n[i].dataCount;if(o.getLengthInBits()>8*u)throw"code length overflow. ("+o.getLengthInBits()+">"+8*u+")";for(o.getLengthInBits()+4<=8*u&&o.put(0,4);o.getLengthInBits()%8!=0;)o.putBit(!1);for(;!(o.getLengthInBits()>=8*u||(o.put(236,8),o.getLengthInBits()>=8*u));)o.put(17,8);return function(t,r){for(var e=0,n=0,o=0,i=new Array(r.length),a=new Array(r.length),u=0;u<r.length;u+=1){var f=r[u].dataCount,c=r[u].totalCount-f;n=Math.max(n,f),o=Math.max(o,c),i[u]=new Array(f);for(var g=0;g<i[u].length;g+=1)i[u][g]=255&t.getBuffer()[g+e];e+=f;var l=B.getErrorCorrectPolynomial(c),h=C(i[u],l.getLength()-1).mod(l);a[u]=new Array(l.getLength()-1);for(g=0;g<a[u].length;g+=1){var s=g+h.getLength()-a[u].length;a[u][g]=0<=s?h.getAt(s):0}}var v=0;for(g=0;g<r.length;g+=1)v+=r[g].totalCount;var d=new Array(v),w=0;for(g=0;g<n;g+=1)for(u=0;u<r.length;u+=1)g<i[u].length&&(d[w]=i[u][g],w+=1);for(g=0;g<o;g+=1)for(u=0;u<r.length;u+=1)g<a[u].length&&(d[w]=a[u][g],w+=1);return d}(o,n)};s.addData=function(t,r){var e=null;switch(r=r||"Byte"){case"Numeric":e=x(t);break;case"Alphanumeric":e=m(t);break;case"Byte":e=L(t);break;case"Kanji":e=D(t);break;default:throw"mode:"+r}c.push(e),n=null},s.isDark=function(t,r){if(t<0||l<=t||r<0||l<=r)throw t+","+r;return g[t][r]},s.getModuleCount=function(){return l},s.make=function(){if(u<1){for(var t=1;t<40;t++){for(var r=b.getRSBlocks(t,f),e=M(),n=0;n<c.length;n++){var o=c[n];e.put(o.getMode(),4),e.put(o.getLength(),B.getLengthInBits(o.getMode(),t)),o.write(e)}var i=0;for(n=0;n<r.length;n++)i+=r[n].dataCount;if(e.getLengthInBits()<=8*i)break}u=t}a(!1,function(){for(var t=0,r=0,e=0;e<8;e+=1){a(!0,e);var n=B.getLostPoint(s);(0==e||n<t)&&(t=n,r=e)}return r}())},s.createTableTag=function(t,r){t=t||2;var e="";e+='<table style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: "+(r=void 0===r?4*t:r)+"px;",e+='">',e+="<tbody>";for(var n=0;n<s.getModuleCount();n+=1){e+="<tr>";for(var o=0;o<s.getModuleCount();o+=1)e+='<td style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: 0px;",e+=" width: "+t+"px;",e+=" height: "+t+"px;",e+=" background-color: ",e+=s.isDark(n,o)?"#000000":"#ffffff",e+=";",e+='"/>';e+="</tr>"}return e+="</tbody>",e+="</table>"},s.createSvgTag=function(t,r,e,n){var o={};"object"==typeof t&&(t=(o=t).cellSize,r=o.margin,e=o.alt,n=o.title),t=t||2,r=void 0===r?4*t:r,(e="string"==typeof e?{text:e}:e||{}).text=e.text||null,e.id=e.text?e.id||"qrcode-description":null,(n="string"==typeof n?{text:n}:n||{}).text=n.text||null,n.id=n.text?n.id||"qrcode-title":null;var i,a,u,f,c=s.getModuleCount()*t+2*r,g="";for(f="l"+t+",0 0,"+t+" -"+t+",0 0,-"+t+"z ",g+='<svg version="1.1" xmlns="http://www.w3.org/2000/svg"',g+=o.scalable?"":' width="'+c+'px" height="'+c+'px"',g+=' viewBox="0 0 '+c+" "+c+'" ',g+=' preserveAspectRatio="xMinYMin meet"',g+=n.text||e.text?' role="img" aria-labelledby="'+p([n.id,e.id].join(" ").trim())+'"':"",g+=">",g+=n.text?'<title id="'+p(n.id)+'">'+p(n.text)+"</title>":"",g+=e.text?'<description id="'+p(e.id)+'">'+p(e.text)+"</description>":"",g+='<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>',g+='<path d="',a=0;a<s.getModuleCount();a+=1)for(u=a*t+r,i=0;i<s.getModuleCount();i+=1)s.isDark(a,i)&&(g+="M"+(i*t+r)+","+u+f);return g+='" stroke="transparent" fill="black"/>',g+="</svg>"},s.createDataURL=function(o,t){o=o||2,t=void 0===t?4*o:t;var r=s.getModuleCount()*o+2*t,i=t,a=r-t;return I(r,r,function(t,r){if(i<=t&&t<a&&i<=r&&r<a){var e=Math.floor((t-i)/o),n=Math.floor((r-i)/o);return s.isDark(n,e)?0:1}return 1})},s.createImgTag=function(t,r,e){t=t||2,r=void 0===r?4*t:r;var n=s.getModuleCount()*t+2*r,o="";return o+="<img",o+=' src="',o+=s.createDataURL(t,r),o+='"',o+=' width="',o+=n,o+='"',o+=' height="',o+=n,o+='"',e&&(o+=' alt="',o+=p(e),o+='"'),o+="/>"};var p=function(t){for(var r="",e=0;e<t.length;e+=1){var n=t.charAt(e);switch(n){case"<":r+="&lt;";break;case">":r+="&gt;";break;case"&":r+="&amp;";break;case'"':r+="&quot;";break;default:r+=n}}return r};return s.createASCII=function(t,r){if((t=t||1)<2)return function(t){t=void 0===t?2:t;var r,e,n,o,i,a=1*s.getModuleCount()+2*t,u=t,f=a-t,c={"██":"█","█ ":"▀"," █":"▄","  ":" "},g={"██":"▀","█ ":"▀"," █":" ","  ":" "},l="";for(r=0;r<a;r+=2){for(n=Math.floor((r-u)/1),o=Math.floor((r+1-u)/1),e=0;e<a;e+=1)i="█",u<=e&&e<f&&u<=r&&r<f&&s.isDark(n,Math.floor((e-u)/1))&&(i=" "),u<=e&&e<f&&u<=r+1&&r+1<f&&s.isDark(o,Math.floor((e-u)/1))?i+=" ":i+="█",l+=t<1&&f<=r+1?g[i]:c[i];l+="\n"}return a%2&&0<t?l.substring(0,l.length-a-1)+Array(1+a).join("▀"):l.substring(0,l.length-1)}(r);t-=1,r=void 0===r?2*t:r;var e,n,o,i,a=s.getModuleCount()*t+2*r,u=r,f=a-r,c=Array(t+1).join("██"),g=Array(t+1).join("  "),l="",h="";for(e=0;e<a;e+=1){for(o=Math.floor((e-u)/t),h="",n=0;n<a;n+=1)i=1,u<=n&&n<f&&u<=e&&e<f&&s.isDark(o,Math.floor((n-u)/t))&&(i=0),h+=i?c:g;for(o=0;o<t;o+=1)l+=h+"\n"}return l.substring(0,l.length-1)},s.renderTo2dContext=function(t,r){r=r||2;for(var e=s.getModuleCount(),n=0;n<e;n++)for(var o=0;o<e;o++)t.fillStyle=s.isDark(n,o)?"black":"white",t.fillRect(n*r,o*r,r,r)},s}i.stringToBytes=(i.stringToBytesFuncs={default:function(t){for(var r=[],e=0;e<t.length;e+=1){var n=t.charCodeAt(e);r.push(255&n)}return r}}).default,i.createStringToBytes=function(u,f){var i=function(){function t(){var t=r.read();if(-1==t)throw"eof";return t}for(var r=S(u),e=0,n={};;){var o=r.read();if(-1==o)break;var i=t(),a=t()<<8|t();n[String.fromCharCode(o<<8|i)]=a,e+=1}if(e!=f)throw e+" != "+f;return n}(),a="?".charCodeAt(0);return function(t){for(var r=[],e=0;e<t.length;e+=1){var n=t.charCodeAt(e);if(n<128)r.push(n);else{var o=i[t.charAt(e)];"number"==typeof o?(255&o)==o?r.push(o):(r.push(o>>>8),r.push(255&o)):r.push(a)}}return r}};var r,t,a=1,u=2,o=4,f=8,y={L:1,M:0,Q:3,H:2},e=0,n=1,c=2,g=3,l=4,h=5,s=6,v=7,B=(r=[[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50],[6,30,54],[6,32,58],[6,34,62],[6,26,46,66],[6,26,48,70],[6,26,50,74],[6,30,54,78],[6,30,56,82],[6,30,58,86],[6,34,62,90],[6,28,50,72,94],[6,26,50,74,98],[6,30,54,78,102],[6,28,54,80,106],[6,32,58,84,110],[6,30,58,86,114],[6,34,62,90,118],[6,26,50,74,98,122],[6,30,54,78,102,126],[6,26,52,78,104,130],[6,30,56,82,108,134],[6,34,60,86,112,138],[6,30,58,86,114,142],[6,34,62,90,118,146],[6,30,54,78,102,126,150],[6,24,50,76,102,128,154],[6,28,54,80,106,132,158],[6,32,58,84,110,136,162],[6,26,54,82,110,138,166],[6,30,58,86,114,142,170]],(t={}).getBCHTypeInfo=function(t){for(var r=t<<10;0<=d(r)-d(1335);)r^=1335<<d(r)-d(1335);return 21522^(t<<10|r)},t.getBCHTypeNumber=function(t){for(var r=t<<12;0<=d(r)-d(7973);)r^=7973<<d(r)-d(7973);return t<<12|r},t.getPatternPosition=function(t){return r[t-1]},t.getMaskFunction=function(t){switch(t){case e:return function(t,r){return(t+r)%2==0};case n:return function(t,r){return t%2==0};case c:return function(t,r){return r%3==0};case g:return function(t,r){return(t+r)%3==0};case l:return function(t,r){return(Math.floor(t/2)+Math.floor(r/3))%2==0};case h:return function(t,r){return t*r%2+t*r%3==0};case s:return function(t,r){return(t*r%2+t*r%3)%2==0};case v:return function(t,r){return(t*r%3+(t+r)%2)%2==0};default:throw"bad maskPattern:"+t}},t.getErrorCorrectPolynomial=function(t){for(var r=C([1],0),e=0;e<t;e+=1)r=r.multiply(C([1,w.gexp(e)],0));return r},t.getLengthInBits=function(t,r){if(1<=r&&r<10)switch(t){case a:return 10;case u:return 9;case o:case f:return 8;default:throw"mode:"+t}else if(r<27)switch(t){case a:return 12;case u:return 11;case o:return 16;case f:return 10;default:throw"mode:"+t}else{if(!(r<41))throw"type:"+r;switch(t){case a:return 14;case u:return 13;case o:return 16;case f:return 12;default:throw"mode:"+t}}},t.getLostPoint=function(t){for(var r=t.getModuleCount(),e=0,n=0;n<r;n+=1)for(var o=0;o<r;o+=1){for(var i=0,a=t.isDark(n,o),u=-1;u<=1;u+=1)if(!(n+u<0||r<=n+u))for(var f=-1;f<=1;f+=1)o+f<0||r<=o+f||0==u&&0==f||a==t.isDark(n+u,o+f)&&(i+=1);5<i&&(e+=3+i-5)}for(n=0;n<r-1;n+=1)for(o=0;o<r-1;o+=1){var c=0;t.isDark(n,o)&&(c+=1),t.isDark(n+1,o)&&(c+=1),t.isDark(n,o+1)&&(c+=1),t.isDark(n+1,o+1)&&(c+=1),0!=c&&4!=c||(e+=3)}for(n=0;n<r;n+=1)for(o=0;o<r-6;o+=1)t.isDark(n,o)&&!t.isDark(n,o+1)&&t.isDark(n,o+2)&&t.isDark(n,o+3)&&t.isDark(n,o+4)&&!t.isDark(n,o+5)&&t.isDark(n,o+6)&&(e+=40);for(o=0;o<r;o+=1)for(n=0;n<r-6;n+=1)t.isDark(n,o)&&!t.isDark(n+1,o)&&t.isDark(n+2,o)&&t.isDark(n+3,o)&&t.isDark(n+4,o)&&!t.isDark(n+5,o)&&t.isDark(n+6,o)&&(e+=40);var g=0;for(o=0;o<r;o+=1)for(n=0;n<r;n+=1)t.isDark(n,o)&&(g+=1);return e+=Math.abs(100*g/r/r-50)/5*10},t);function d(t){for(var r=0;0!=t;)r+=1,t>>>=1;return r}var w=function(){for(var r=new Array(256),e=new Array(256),t=0;t<8;t+=1)r[t]=1<<t;for(t=8;t<256;t+=1)r[t]=r[t-4]^r[t-5]^r[t-6]^r[t-8];for(t=0;t<255;t+=1)e[r[t]]=t;var n={glog:function(t){if(t<1)throw"glog("+t+")";return e[t]},gexp:function(t){for(;t<0;)t+=255;for(;256<=t;)t-=255;return r[t]}};return n}();function C(n,o){if(void 0===n.length)throw n.length+"/"+o;var r=function(){for(var t=0;t<n.length&&0==n[t];)t+=1;for(var r=new Array(n.length-t+o),e=0;e<n.length-t;e+=1)r[e]=n[e+t];return r}(),i={getAt:function(t){return r[t]},getLength:function(){return r.length},multiply:function(t){for(var r=new Array(i.getLength()+t.getLength()-1),e=0;e<i.getLength();e+=1)for(var n=0;n<t.getLength();n+=1)r[e+n]^=w.gexp(w.glog(i.getAt(e))+w.glog(t.getAt(n)));return C(r,0)},mod:function(t){if(i.getLength()-t.getLength()<0)return i;for(var r=w.glog(i.getAt(0))-w.glog(t.getAt(0)),e=new Array(i.getLength()),n=0;n<i.getLength();n+=1)e[n]=i.getAt(n);for(n=0;n<t.getLength();n+=1)e[n]^=w.gexp(w.glog(t.getAt(n))+r);return C(e,0).mod(t)}};return i}function p(){var e=[],o={writeByte:function(t){e.push(255&t)},writeShort:function(t){o.writeByte(t),o.writeByte(t>>>8)},writeBytes:function(t,r,e){r=r||0,e=e||t.length;for(var n=0;n<e;n+=1)o.writeByte(t[n+r])},writeString:function(t){for(var r=0;r<t.length;r+=1)o.writeByte(t.charCodeAt(r))},toByteArray:function(){return e},toString:function(){var t="";t+="[";for(var r=0;r<e.length;r+=1)0<r&&(t+=","),t+=e[r];return t+="]"}};return o}var k,A,b=(k=[[1,26,19],[1,26,16],[1,26,13],[1,26,9],[1,44,34],[1,44,28],[1,44,22],[1,44,16],[1,70,55],[1,70,44],[2,35,17],[2,35,13],[1,100,80],[2,50,32],[2,50,24],[4,25,9],[1,134,108],[2,67,43],[2,33,15,2,34,16],[2,33,11,2,34,12],[2,86,68],[4,43,27],[4,43,19],[4,43,15],[2,98,78],[4,49,31],[2,32,14,4,33,15],[4,39,13,1,40,14],[2,121,97],[2,60,38,2,61,39],[4,40,18,2,41,19],[4,40,14,2,41,15],[2,146,116],[3,58,36,2,59,37],[4,36,16,4,37,17],[4,36,12,4,37,13],[2,86,68,2,87,69],[4,69,43,1,70,44],[6,43,19,2,44,20],[6,43,15,2,44,16],[4,101,81],[1,80,50,4,81,51],[4,50,22,4,51,23],[3,36,12,8,37,13],[2,116,92,2,117,93],[6,58,36,2,59,37],[4,46,20,6,47,21],[7,42,14,4,43,15],[4,133,107],[8,59,37,1,60,38],[8,44,20,4,45,21],[12,33,11,4,34,12],[3,145,115,1,146,116],[4,64,40,5,65,41],[11,36,16,5,37,17],[11,36,12,5,37,13],[5,109,87,1,110,88],[5,65,41,5,66,42],[5,54,24,7,55,25],[11,36,12,7,37,13],[5,122,98,1,123,99],[7,73,45,3,74,46],[15,43,19,2,44,20],[3,45,15,13,46,16],[1,135,107,5,136,108],[10,74,46,1,75,47],[1,50,22,15,51,23],[2,42,14,17,43,15],[5,150,120,1,151,121],[9,69,43,4,70,44],[17,50,22,1,51,23],[2,42,14,19,43,15],[3,141,113,4,142,114],[3,70,44,11,71,45],[17,47,21,4,48,22],[9,39,13,16,40,14],[3,135,107,5,136,108],[3,67,41,13,68,42],[15,54,24,5,55,25],[15,43,15,10,44,16],[4,144,116,4,145,117],[17,68,42],[17,50,22,6,51,23],[19,46,16,6,47,17],[2,139,111,7,140,112],[17,74,46],[7,54,24,16,55,25],[34,37,13],[4,151,121,5,152,122],[4,75,47,14,76,48],[11,54,24,14,55,25],[16,45,15,14,46,16],[6,147,117,4,148,118],[6,73,45,14,74,46],[11,54,24,16,55,25],[30,46,16,2,47,17],[8,132,106,4,133,107],[8,75,47,13,76,48],[7,54,24,22,55,25],[22,45,15,13,46,16],[10,142,114,2,143,115],[19,74,46,4,75,47],[28,50,22,6,51,23],[33,46,16,4,47,17],[8,152,122,4,153,123],[22,73,45,3,74,46],[8,53,23,26,54,24],[12,45,15,28,46,16],[3,147,117,10,148,118],[3,73,45,23,74,46],[4,54,24,31,55,25],[11,45,15,31,46,16],[7,146,116,7,147,117],[21,73,45,7,74,46],[1,53,23,37,54,24],[19,45,15,26,46,16],[5,145,115,10,146,116],[19,75,47,10,76,48],[15,54,24,25,55,25],[23,45,15,25,46,16],[13,145,115,3,146,116],[2,74,46,29,75,47],[42,54,24,1,55,25],[23,45,15,28,46,16],[17,145,115],[10,74,46,23,75,47],[10,54,24,35,55,25],[19,45,15,35,46,16],[17,145,115,1,146,116],[14,74,46,21,75,47],[29,54,24,19,55,25],[11,45,15,46,46,16],[13,145,115,6,146,116],[14,74,46,23,75,47],[44,54,24,7,55,25],[59,46,16,1,47,17],[12,151,121,7,152,122],[12,75,47,26,76,48],[39,54,24,14,55,25],[22,45,15,41,46,16],[6,151,121,14,152,122],[6,75,47,34,76,48],[46,54,24,10,55,25],[2,45,15,64,46,16],[17,152,122,4,153,123],[29,74,46,14,75,47],[49,54,24,10,55,25],[24,45,15,46,46,16],[4,152,122,18,153,123],[13,74,46,32,75,47],[48,54,24,14,55,25],[42,45,15,32,46,16],[20,147,117,4,148,118],[40,75,47,7,76,48],[43,54,24,22,55,25],[10,45,15,67,46,16],[19,148,118,6,149,119],[18,75,47,31,76,48],[34,54,24,34,55,25],[20,45,15,61,46,16]],(A={}).getRSBlocks=function(t,r){var e=function(t,r){switch(r){case y.L:return k[4*(t-1)+0];case y.M:return k[4*(t-1)+1];case y.Q:return k[4*(t-1)+2];case y.H:return k[4*(t-1)+3];default:return}}(t,r);if(void 0===e)throw"bad rs block @ typeNumber:"+t+"/errorCorrectionLevel:"+r;for(var n,o,i=e.length/3,a=[],u=0;u<i;u+=1)for(var f=e[3*u+0],c=e[3*u+1],g=e[3*u+2],l=0;l<f;l+=1)a.push((n=g,o=void 0,(o={}).totalCount=c,o.dataCount=n,o));return a},A),M=function(){var e=[],n=0,o={getBuffer:function(){return e},getAt:function(t){var r=Math.floor(t/8);return 1==(e[r]>>>7-t%8&1)},put:function(t,r){for(var e=0;e<r;e+=1)o.putBit(1==(t>>>r-e-1&1))},getLengthInBits:function(){return n},putBit:function(t){var r=Math.floor(n/8);e.length<=r&&e.push(0),t&&(e[r]|=128>>>n%8),n+=1}};return o},x=function(t){var r=a,n=t,e={getMode:function(){return r},getLength:function(t){return n.length},write:function(t){for(var r=n,e=0;e+2<r.length;)t.put(o(r.substring(e,e+3)),10),e+=3;e<r.length&&(r.length-e==1?t.put(o(r.substring(e,e+1)),4):r.length-e==2&&t.put(o(r.substring(e,e+2)),7))}},o=function(t){for(var r=0,e=0;e<t.length;e+=1)r=10*r+i(t.charAt(e));return r},i=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);throw"illegal char :"+t};return e},m=function(t){var r=u,n=t,e={getMode:function(){return r},getLength:function(t){return n.length},write:function(t){for(var r=n,e=0;e+1<r.length;)t.put(45*o(r.charAt(e))+o(r.charAt(e+1)),11),e+=2;e<r.length&&t.put(o(r.charAt(e)),6)}},o=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);if("A"<=t&&t<="Z")return t.charCodeAt(0)-"A".charCodeAt(0)+10;switch(t){case" ":return 36;case"$":return 37;case"%":return 38;case"*":return 39;case"+":return 40;case"-":return 41;case".":return 42;case"/":return 43;case":":return 44;default:throw"illegal char :"+t}};return e},L=function(t){var r=o,e=i.stringToBytes(t),n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=0;r<e.length;r+=1)t.put(e[r],8)}};return n},D=function(t){var r=f,e=i.stringToBytesFuncs.SJIS;if(!e)throw"sjis not supported.";!function(){var t=e("友");if(2!=t.length||38726!=(t[0]<<8|t[1]))throw"sjis not supported."}();var o=e(t),n={getMode:function(){return r},getLength:function(t){return~~(o.length/2)},write:function(t){for(var r=o,e=0;e+1<r.length;){var n=(255&r[e])<<8|255&r[e+1];if(33088<=n&&n<=40956)n-=33088;else{if(!(57408<=n&&n<=60351))throw"illegal char at "+(e+1)+"/"+n;n-=49472}n=192*(n>>>8&255)+(255&n),t.put(n,13),e+=2}if(e<r.length)throw"illegal char at "+(e+1)}};return n},S=function(t){var e=t,n=0,o=0,i=0,r={read:function(){for(;i<8;){if(n>=e.length){if(0==i)return-1;throw"unexpected end of file./"+i}var t=e.charAt(n);if(n+=1,"="==t)return i=0,-1;t.match(/^\s$/)||(o=o<<6|a(t.charCodeAt(0)),i+=6)}var r=o>>>i-8&255;return i-=8,r}},a=function(t){if(65<=t&&t<=90)return t-65;if(97<=t&&t<=122)return t-97+26;if(48<=t&&t<=57)return t-48+52;if(43==t)return 62;if(47==t)return 63;throw"c:"+t};return r},I=function(t,r,e){for(var n=function(t,r){var n=t,o=r,l=new Array(t*r),e={setPixel:function(t,r,e){l[r*n+t]=e},write:function(t){t.writeString("GIF87a"),t.writeShort(n),t.writeShort(o),t.writeByte(128),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(255),t.writeByte(255),t.writeByte(255),t.writeString(","),t.writeShort(0),t.writeShort(0),t.writeShort(n),t.writeShort(o),t.writeByte(0);var r=i(2);t.writeByte(2);for(var e=0;255<r.length-e;)t.writeByte(255),t.writeBytes(r,e,255),e+=255;t.writeByte(r.length-e),t.writeBytes(r,e,r.length-e),t.writeByte(0),t.writeString(";")}},i=function(t){for(var r=1<<t,e=1+(1<<t),n=t+1,o=h(),i=0;i<r;i+=1)o.add(String.fromCharCode(i));o.add(String.fromCharCode(r)),o.add(String.fromCharCode(e));var a=p(),u=function(t){var e=t,n=0,o=0,r={write:function(t,r){if(t>>>r!=0)throw"length over";for(;8<=n+r;)e.writeByte(255&(t<<n|o)),r-=8-n,t>>>=8-n,n=o=0;o|=t<<n,n+=r},flush:function(){0<n&&e.writeByte(o)}};return r}(a);u.write(r,n);var f=0,c=String.fromCharCode(l[f]);for(f+=1;f<l.length;){var g=String.fromCharCode(l[f]);f+=1,o.contains(c+g)?c+=g:(u.write(o.indexOf(c),n),o.size()<4095&&(o.size()==1<<n&&(n+=1),o.add(c+g)),c=g)}return u.write(o.indexOf(c),n),u.write(e,n),u.flush(),a.toByteArray()},h=function(){var r={},e=0,n={add:function(t){if(n.contains(t))throw"dup key:"+t;r[t]=e,e+=1},size:function(){return e},indexOf:function(t){return r[t]},contains:function(t){return void 0!==r[t]}};return n};return e}(t,r),o=0;o<r;o+=1)for(var i=0;i<t;i+=1)n.setPixel(i,o,e(i,o));var a=p();n.write(a);for(var u=function(){function e(t){a+=String.fromCharCode(r(63&t))}var n=0,o=0,i=0,a="",t={},r=function(t){if(t<0);else{if(t<26)return 65+t;if(t<52)return t-26+97;if(t<62)return t-52+48;if(62==t)return 43;if(63==t)return 47}throw"n:"+t};return t.writeByte=function(t){for(n=n<<8|255&t,o+=8,i+=1;6<=o;)e(n>>>o-6),o-=6},t.flush=function(){if(0<o&&(e(n<<6-o),o=n=0),i%3!=0)for(var t=3-i%3,r=0;r<t;r+=1)a+="="},t.toString=function(){return a},t}(),f=a.toByteArray(),c=0;c<f.length;c+=1)u.writeByte(f[c]);return u.flush(),"data:image/gif;base64,"+u};return i}();qrcode.stringToBytesFuncs["UTF-8"]=function(t){return function(t){for(var r=[],e=0;e<t.length;e++){var n=t.charCodeAt(e);n<128?r.push(n):n<2048?r.push(192|n>>6,128|63&n):n<55296||57344<=n?r.push(224|n>>12,128|n>>6&63,128|63&n):(e++,n=65536+((1023&n)<<10|1023&t.charCodeAt(e)),r.push(240|n>>18,128|n>>12&63,128|n>>6&63,128|63&n))}return r}(t)},function(t){"function"==typeof define&&define.amd?define([],t):"object"==typeof exports&&(module.exports=t())}(function(){return qrcode});
 </script>
 
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.12.0";
+  var KEY = "pedeai.v2", VERSION = "4.13.0";
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- logger de erros (silencioso -> backend -> erros_pedeai.log) ----------
@@ -548,7 +546,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   }
   function _logRole() {
     try {
-      if (window.state && state.sync && state.sync.room) return state.sync.role || "full";
+      if (window.state && state.store && state.store.id) return state.store.role || "full";
       if (typeof activeRole === "function") return activeRole() || "solo";
     } catch (e) {}
     return "solo";
@@ -566,7 +564,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       var payload = {
         kind: String(kind || "erro").slice(0, 40), msg: msg, stack: stack,
         v: VERSION, role: _logRole(),
-        room: (window.state && state.sync && state.sync.room) ? String(state.sync.room) : "",
+        store: (window.state && state.store && state.store.id) ? String(state.store.id) : "",
         url: (location && location.pathname) || "",
         ua: (navigator.userAgent || "").slice(0, 300),
         online: navigator.onLine !== false, at: now
@@ -668,7 +666,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   function licState() {
     // A licença da conta acompanha o e-mail e vale em qualquer aparelho.
     // Colaboradores pareados usam a licença do responsável pela sala.
-    if (typeof syncPaired === "function" && syncPaired() && state.sync && state.sync.role && state.sync.role !== "full") return "unlocked";
+    if (typeof storeLinked === "function" && storeLinked() && state.store && state.store.role && state.store.role !== "full") return "unlocked";
     if (authUser && authUser.access) {
       if (authUser.access.active) return authUser.access.status === "trial" ? "trial" : "unlocked";
       if (authUser.access.status === "pending") return "pending";
@@ -805,8 +803,8 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     catch (e) { var msg = document.getElementById("accesserr"); if (msg) msg.textContent = e.message || "código inválido"; }
   }
   async function authLogout() {
-    if (syncPaired() && state.sync.role !== "full") { toast("Para sair, use Sair da sala"); return; }
-    if (syncPaired()) syncUnbindRoom();
+    if (storeLinked() && state.store.role !== "full") { toast("Para sair, use Sair da sala"); return; }
+    if (storeLinked()) storeUnlink();
     try { await authApi("/auth/logout", "POST", {}); } catch (e) {}
     var s = authPlugin("SecureStorage"); try { if (s && s.remove) await s.remove({ key: "pedeai.auth.token" }); } catch (e) {}
     try { localStorage.removeItem("pedeai.auth.token"); } catch (e) {}
@@ -1060,10 +1058,20 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       (t.items || []).forEach(function (it) { if (it.note == null) it.note = ""; if (!it.addedAt) it.addedAt = t.openedAt || Date.now(); });
     });
     if (state.day && state.day.sales) state.day.sales.forEach(function (s) { if (s.discount == null) s.discount = 0; if (s.pay === undefined) s.pay = null; });
-    if (!state.sync) state.sync = { room: null, pin: null, role: "full", enabled: false, server: "", cfgAt: 0, tomb: {}, status: "off" };
-    if (state.sync.tomb == null) state.sync.tomb = {};
+    // Migração da fase SaaS: o pareamento por sala/PIN/QR foi removido. Qualquer
+    // vínculo antigo (state.sync ou state.store com room/pin) é descartado — os
+    // DADOS locais (mesas/vendas/cardápio) NUNCA são tocados. A pessoa reconecta
+    // pela conta em Ajustes › Estabelecimento.
+    if (state.sync) { try { delete state.sync; } catch (e) { state.sync = undefined; } }
+    if (!state.store || state.store.room !== undefined || state.store.pin !== undefined || state.store.id === undefined) {
+      var keepTomb = (state.store && state.store.tomb) || {};
+      var keepEvents = (state.store && state.store.events) || [];
+      state.store = { id: null, name: "", role: "full", enabled: true, jwt: "", jwtExp: 0,
+        cfgAt: 0, tomb: keepTomb, _tombPending: {}, status: "off", events: keepEvents };
+    }
+    if (state.store.tomb == null) state.store.tomb = {};
     // aparelho "dono" = fez o assistente; quem só entrou numa sala não tem setup próprio
-    if (typeof state.setupOwn !== "boolean") state.setupOwn = !!(state.setup && !(state.sync && state.sync.room) && !(state.ui && state.ui.demo));
+    if (typeof state.setupOwn !== "boolean") state.setupOwn = !!(state.setup && !(state.store && state.store.id) && !(state.ui && state.ui.demo));
     (state.tables || []).forEach(function (t) {
       if (!t.updatedAt) t.updatedAt = t.openedAt || Date.now();
       (t.items || []).forEach(function (it) { if (!it.updatedAt) it.updatedAt = it.addedAt || Date.now(); });
@@ -1088,46 +1096,86 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     try { if (state.cloud && state.cloud.code && typeof cloudPush === "function") setTimeout(function () { cloudPush(true); }, 400); } catch (e) {}
   }
 
-  // ---------- sincronização entre aparelhos ----------
-  // Modelo: cada bar = uma "sala" (código + PIN) numa caixa-postal na nuvem.
-  // O app funciona 100% offline sozinho; quando tem rede, os aparelhos da mesma
-  // sala trocam mesas/itens/vendas a cada ~3s (last-write-wins por updatedAt).
-  var SYNC_DEFAULT_URL = "https://deckk.duckdns.org/sync";
+  // ---------- sincronização do estabelecimento (multi-tenant) ----------
+  // Cada estabelecimento (Store) tem um id no servidor. O app funciona 100%
+  // offline sozinho; quando tem rede E uma conta logada, troca a sessão de conta
+  // por um JWT curto ({uid, store, role}) e sincroniza mesas/itens/vendas a cada
+  // ~3s (last-write-wins por updatedAt). Sem código de sala, sem PIN, sem QR.
+  var SYNC_URL = "https://deckk.duckdns.org/sync";
   var SYNC_POLL_MS = 3000, SYNC_TIMEOUT_MS = 8000, SYNC_RETRY_MAX_MS = 15000;
   var SYNC_PHANTOM_MS = 20000;   // "online" sem nenhum pong há mais que isto = conexão fantasma
-  var syncManualLockUntil = 0;   // trava anti-repique do botão "Sincronizar Manualmente"
+  var syncManualLockUntil = 0;   // trava anti-repique do botão "Sincronizar agora"
   var syncTimer = null, syncBusy = false, syncPushedAt = 0, syncEpoch = 0, syncManualPromise = null;
   var syncRequest = null, syncFailures = 0, syncRetryAt = 0, syncRetryStatus = 0;
   var syncBackgrounded = false, syncLastKick = 0;
   var syncLastToast = "";
   var syncPeers = [];
-  function syncUrl() { return (state.sync && state.sync.server) || SYNC_DEFAULT_URL; }
-  function syncPaired() { return !!(state.sync && state.sync.room && state.sync.pin); }
-  function syncActive() { return syncPaired() && state.sync.enabled; }
+  var storeJwtInFlight = null;
+  function storeLinked() { return !!(state.store && state.store.id); }
+  function storeRole() { return (state.store && state.store.role) || "full"; }
+  function syncActive() { return storeLinked() && state.store.enabled !== false && !!authToken; }
   function touchTable(t) { if (t) t.updatedAt = Date.now(); }
   function touchItem(t, it) { var n = Date.now(); if (it) it.updatedAt = n; if (t) t.updatedAt = n; }
   function removeItem(t, it) {
     t.deletedItems = t.deletedItems || {}; t.deletedItems[it.id] = Date.now();
     t.items = t.items.filter(function (x) { return x.id !== it.id; }); touchTable(t);
   }
-  function touchCfg() { if (state.sync) state.sync.cfgAt = Date.now(); }
+  function touchCfg() { if (state.store) state.store.cfgAt = Date.now(); }
   function tombTable(id) {
-    if (!state.sync) return;
+    if (!state.store) return;
     var now = Date.now();
-    state.sync.tomb = state.sync.tomb || {}; state.sync.tomb[id] = now;
+    state.store.tomb = state.store.tomb || {}; state.store.tomb[id] = now;
     // Marca como pendente até o servidor confirmar o recebimento — enquanto isso,
     // o merge não deixa o servidor "ressuscitar" esta mesa.
-    state.sync._tombPending = state.sync._tombPending || {}; state.sync._tombPending[id] = now;
+    state.store._tombPending = state.store._tombPending || {}; state.store._tombPending[id] = now;
   }
-  function roomCode() { var s = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", o = ""; for (var i = 0; i < 6; i++) o += s[Math.floor(Math.random() * s.length)]; return o; }
-  function pinCode() { var o = ""; for (var i = 0; i < 6; i++) o += Math.floor(Math.random() * 10); return o; }
-  // F3 (auditoria): "prova de criação" — só quem criou a sala tem esta chave; o
-  // servidor a exige pra criar a sala e recusa POST para sala que ninguém criou.
-  function mkCode() { return Array.from(crypto.getRandomValues(new Uint8Array(24))).map(function (n) { return n.toString(16).padStart(2, "0"); }).join(""); }
-  function rolePins(main) {
-    var out = {}, used = [main];
-    ["cashier", "waiter", "kitchen"].forEach(function (r) { var pin; do { pin = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, "0"); } while (used.indexOf(pin) >= 0); used.push(pin); out[r] = pin; });
-    return out;
+  // ---- vínculo do aparelho com um estabelecimento (via conta) ----
+  function storeApi(path, method, body) {
+    return networkRequest(AUTH_API + path, {
+      method: method || "GET", headers: authHeaders(),
+      body: body === undefined ? undefined : JSON.stringify(body)
+    }, 10000).promise;
+  }
+  function storeList() { return storeApi("/stores"); }
+  function storeCreate(name) {
+    return storeApi("/stores", "POST", { name: name }).then(function (j) {
+      if (j && j.store) storeAdopt(j.store);
+      return j;
+    });
+  }
+  function inviteAccept(token) {
+    return storeApi("/invites/accept", "POST", { token: token }).then(function (j) {
+      if (j && j.store) storeAdopt(j.store);
+      return j;
+    });
+  }
+  function storeAdopt(store) {
+    var prev = (state.store && state.store.id === store.id) ? state.store : null;
+    state.store = {
+      id: store.id, name: store.name || "", role: store.role || "full",
+      enabled: true, jwt: "", jwtExp: 0,
+      cfgAt: prev ? (prev.cfgAt || 0) : 0,
+      tomb: prev ? (prev.tomb || {}) : {}, _tombPending: prev ? (prev._tombPending || {}) : {},
+      status: "off", events: prev ? (prev.events || []) : []
+    };
+    persist();
+    syncResetRuntime();
+    if (syncActive()) syncStart();
+  }
+  // Garante um JWT de sync válido (renova ~1min antes de expirar).
+  function storeEnsureJwt() {
+    if (!storeLinked() || !authToken) return Promise.resolve(null);
+    if (state.store.jwt && Date.now() < (state.store.jwtExp || 0) - 60000) return Promise.resolve(state.store.jwt);
+    if (storeJwtInFlight) return storeJwtInFlight;
+    storeJwtInFlight = storeApi("/stores/" + state.store.id + "/session", "POST", {}).then(function (j) {
+      if (!j || !j.token) throw Error("sessão do estabelecimento indisponível");
+      state.store.jwt = j.token;
+      state.store.jwtExp = Date.now() + (Math.max(60, (j.expiresIn || 900)) * 1000);
+      if (j.role && j.role !== state.store.role) { state.store.role = j.role; }
+      persist(false);
+      return state.store.jwt;
+    }).finally(function () { storeJwtInFlight = null; });
+    return storeJwtInFlight;
   }
 
   function syncCfgBlob() {
@@ -1157,7 +1205,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     if (typeof c.servicePct === "number") state.settings.servicePct = c.servicePct;
     if (typeof c.serviceDefault === "boolean") state.settings.serviceDefault = c.serviceDefault;
     // aparelho de garçom/caixa/cozinha começa sem "quem sou" — mostra o papel; a pessoa pode escolher um nome pra atribuição
-    if (!state.activeStaffId && state.staff[0] && (!syncPaired() || state.sync.role === "full")) state.activeStaffId = state.staff[0].id;
+    if (!state.activeStaffId && state.staff[0] && (!storeLinked() || state.store.role === "full")) state.activeStaffId = state.staff[0].id;
   }
   function syncSig() { return JSON.stringify([state.tables, state.day.sales.length, state.menu.length, state.biz.name, state.staff.length]); }
   function overwrite(dst, src) { var k; for (k in dst) if (dst.hasOwnProperty(k)) delete dst[k]; for (k in src) if (src.hasOwnProperty(k)) dst[k] = src[k]; }
@@ -1221,25 +1269,25 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   }
   function syncMerge(res) {
     var before = syncSig();
-    var tomb = Object.assign({}, state.sync.tomb || {});
+    var tomb = Object.assign({}, state.store.tomb || {});
     Object.keys(res.tomb || {}).forEach(function (id) { tomb[id] = Math.max(tomb[id] || 0, res.tomb[id]); });
     // O servidor é a autoridade sobre quais mesas estão vivas: ele já aplicou os
     // tombstones no merge dele. Se uma mesa voltou na resposta, um tombstone local
     // obsoleto (relógio adiantado, sobra de sessão antiga) NÃO pode escondê-la.
     // Exceção: tombstone feito aqui e ainda não confirmado pelo servidor (_tombPending).
-    var pending = state.sync._tombPending || {};
+    var pending = state.store._tombPending || {};
     (res.tables || []).forEach(function (srv) {
       if (srv && srv.id && tomb[srv.id] && !pending[srv.id]) {
         delete tomb[srv.id];
       }
     });
     state.tables = syncMergeTables(res.tables || [], tomb);
-    state.sync.tomb = tomb;
+    state.store.tomb = tomb;
     if (res.day && res.day.date) {
       if (res.day.date > state.day.date) state.day = res.day;
       else if (res.day.date === state.day.date) state.day.sales = syncMergeSales(res.day.sales || []);
     }
-    if (res.cfg && (res.cfgAt || 0) > (state.sync.cfgAt || 0)) { syncApplyCfg(res.cfg); state.sync.cfgAt = res.cfgAt; }
+    if (res.cfg && (res.cfgAt || 0) > (state.store.cfgAt || 0)) { syncApplyCfg(res.cfg); state.store.cfgAt = res.cfgAt; }
     return before !== syncSig();
   }
   // Prazo inclui o corpo da resposta. O cancelamento libera a fila mesmo quando
@@ -1294,51 +1342,56 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     if (syncRequest) return syncRequest.promise;
     if (Date.now() < syncRetryAt) { syncSchedule(syncRetryAt - Date.now()); return Promise.resolve(false); }
     if (navigator.onLine === false) {
-      networkOffline("offline", "Sem rede: pedidos preservados neste aparelho");
+      networkOffline("offline", "Sem internet: pedidos preservados neste aparelho");
       syncSchedule(SYNC_RETRY_MAX_MS); return Promise.resolve(false);
     }
     clearTimeout(syncTimer); syncTimer = null;
-    if (state.sync.mk && !state.sync.rolePins) { state.sync.rolePins = rolePins(state.sync.pin); persist(false); }
-    if (!state.sync.presenceId) { state.sync.presenceId = uid(); persist(false); }
     syncBusy = true; syncPushedAt = Date.now();
-    var epoch = syncEpoch, requestedRoom = state.sync.room, requestedPin = state.sync.pin, requestedRole = state.sync.role, requestedUrl = syncUrl();
+    var epoch = syncEpoch, requestedStore = state.store.id, requestedRole = state.store.role;
     var ping = syncPushedAt.toString(36) + ":" + epoch + ":" + Math.random().toString(36).slice(2);
-    var payload = { room: state.sync.room, pin: state.sync.pin, role: state.sync.role || "full", deviceId: updInstallId(), presenceId: state.sync.presenceId, ping: ping,
-      mk: state.sync.mk || "", rolePins: state.sync.mk ? state.sync.rolePins : undefined, tables: state.tables,
-      tomb: state.sync.tomb || {}, day: state.day, cfg: syncCfgBlob(), cfgAt: state.sync.cfgAt || 0 };
-    if (state.sync.needCreate) payload.create = 1;
-    var request = networkRequest(requestedUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    request.startedAt = syncPushedAt; syncRequest = request;
     var delay = SYNC_POLL_MS;
     function currentRequest() {
-      return syncRequest === request && epoch === syncEpoch && syncActive() && requestedRoom === state.sync.room &&
-        requestedPin === state.sync.pin && requestedRole === state.sync.role && requestedUrl === syncUrl();
+      return syncRequest === request && epoch === syncEpoch && syncActive() &&
+        requestedStore === state.store.id && requestedRole === state.store.role;
     }
-    request.promise = request.promise.then(function (res) {
+    // Antes do push: garante um JWT de sessão válido (renova sozinho).
+    var request = { promise: null, startedAt: syncPushedAt, cancel: function () {} };
+    syncRequest = request;
+    request.promise = storeEnsureJwt().then(function (jwt) {
+      if (!jwt || !currentRequest()) { var e = new Error("sem sessão do estabelecimento"); e.status = 401; throw e; }
+      var payload = { deviceId: updInstallId(), ping: ping, tables: state.tables,
+        tomb: state.store.tomb || {}, day: state.day, cfg: syncCfgBlob(), cfgAt: state.store.cfgAt || 0 };
+      var net = networkRequest(SYNC_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + jwt },
+        body: JSON.stringify(payload)
+      });
+      request.cancel = net.cancel;
+      return net.promise;
+    }).then(function (res) {
       if (!currentRequest()) return false;
       if (!res || !res.ok || !Array.isArray(res.tables) || (res.pong !== undefined && res.pong !== ping)) throw Error("Resposta inválida da sincronização");
       // Servidores anteriores não devolvem pong; a resposta válida do /sync
       // continua sendo a confirmação, sem exigir novo pareamento.
       // Os tombstones que foram no corpo desta requisição já chegaram ao servidor —
       // saem da fila "pendente" e deixam de mascarar mesas que o servidor mantém vivas.
-      if (state.sync._tombPending) {
-        Object.keys(state.sync._tombPending).forEach(function (id) {
-          if (state.sync._tombPending[id] <= request.startedAt) delete state.sync._tombPending[id];
+      if (state.store._tombPending) {
+        Object.keys(state.store._tombPending).forEach(function (id) {
+          if (state.store._tombPending[id] <= request.startedAt) delete state.store._tombPending[id];
         });
       }
       var beforeSnap = notifSnapshot(), changed = syncMerge(res), previousPeers = syncPeers.slice();
-      state.sync.needCreate = false;
       syncFailures = 0; syncRetryAt = 0; syncRetryStatus = 0;
       syncPeers = Array.isArray(res.peers) ? res.peers.slice() : [];
-      state.sync.peers = syncPeers;
-      state.sync.lastRoundTripMs = Math.max(0, Date.now() - request.startedAt);
-      state.sync.heartbeat = res.pong === ping ? "pong" : "http";
-      if (res.pong === ping) state.sync.lastPongAt = Date.now();
+      state.store.peers = syncPeers;
+      state.store.lastRoundTripMs = Math.max(0, Date.now() - request.startedAt);
+      state.store.heartbeat = res.pong === ping ? "pong" : "http";
+      if (res.pong === ping) state.store.lastPongAt = Date.now();
       var recovered = networkOnline();
       persist(changed || recovered);
       if (!recovered) {
-        var joined = syncPeers.filter(function (p) { return previousPeers.indexOf(p) < 0 && p !== state.sync.role; });
-        if (joined.length) toast("Aparelho pareado: " + joined.map(syncRoleLabel).join(", "));
+        var joined = syncPeers.filter(function (p) { return previousPeers.indexOf(p) < 0 && p !== state.store.role; });
+        if (joined.length) toast("Aparelho conectado: " + joined.map(syncRoleLabel).join(", "));
       }
       if (_notifReady) notifCheck(beforeSnap, notifSnapshot()); else _notifReady = true;
       // Reconectou: re-renderiza a comanda mesmo que o sig não tenha mudado, pra
@@ -1356,9 +1409,10 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       if (status === 429) delay = Math.min(60000, Math.max(delay, err.retryAfter || 15000));
       else delay = Math.max(delay, err.retryAfter || 0);
       syncRetryAt = Date.now() + delay; syncRetryStatus = status;
+      // 401/403 = JWT venceu ou acesso mudou -> descarta o token e re-mint no próximo tick.
+      if (status === 401 || status === 403) { state.store.jwt = ""; state.store.jwtExp = 0; }
       var next = status === 401 || status === 403 ? "badpin" : status === 404 ? "noroom" : "offline";
-      var message = next === "badpin" ? "Reconectando à sala…" : next === "noroom" ? "Reconectando à sala…" :
-        status === 429 ? "Servidor pediu uma pausa; reconectando automaticamente" : "Reconectando à sala…";
+      var message = "Reconectando ao estabelecimento…";
       networkOffline(next, message);
       // Só falhas de servidor / rede desconhecida viram log (4xx são esperados).
       if (!(status >= 400 && status < 500)) {
@@ -1377,12 +1431,12 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     if (!syncActive()) return;
     syncCancelRequest(); syncFailures = 0; syncRetryAt = 0; syncRetryStatus = 0;
     _notifReady = false;
-    state.sync.status = "connecting"; syncLastToast = "connecting";
+    state.store.status = "connecting"; syncLastToast = "connecting";
     notifReqPerm(); return syncTick();
   }
   function syncStop() {
     syncCancelRequest(); _notifReady = false;
-    if (state.sync) state.sync.status = "off";
+    if (state.store) state.store.status = "off";
     syncPaintDot();
   }
   function syncResetRuntime() {
@@ -1391,16 +1445,19 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     syncManualPromise = null; syncManualLockUntil = 0;
   }
   function syncLeavePresence(snapshot) {
-    if (!snapshot || !snapshot.room || !snapshot.pin) return Promise.resolve(false);
-    var payload = { action: "leave", room: snapshot.room, pin: snapshot.pin, role: snapshot.role || "full",
-      mk: snapshot.mk || "", deviceId: updInstallId(), presenceId: snapshot.presenceId || "" };
-    return fetch((snapshot.server || SYNC_DEFAULT_URL), { method: "POST", cache: "no-store", keepalive: true,
-      headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(function (r) { return r.ok; }).catch(function () { return false; });
+    // Beacon "sai da presença" — só faz sentido com um JWT válido em mãos.
+    var jwt = snapshot && snapshot.jwt;
+    if (!jwt || Date.now() >= (snapshot.jwtExp || 0)) return Promise.resolve(false);
+    return fetch(SYNC_URL, { method: "POST", cache: "no-store", keepalive: true,
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + jwt },
+      body: JSON.stringify({ action: "leave", deviceId: updInstallId() }) })
+      .then(function (r) { return r.ok; }).catch(function () { return false; });
   }
-  function syncUnbindRoom() {
-    var snapshot = Object.assign({}, state.sync || {}), server = snapshot.server || "";
+  function storeUnlink() {
+    var snapshot = Object.assign({}, state.store || {});
     syncResetRuntime();
-    state.sync = { room: null, pin: null, role: "full", enabled: false, server: server, cfgAt: 0, tomb: {}, status: "off", events: snapshot.events || [] };
+    state.store = { id: null, name: "", role: "full", enabled: true, jwt: "", jwtExp: 0,
+      cfgAt: 0, tomb: {}, _tombPending: {}, status: "off", events: snapshot.events || [] };
     persist();
     syncLeavePresence(snapshot);
     return snapshot;
@@ -1417,7 +1474,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     if (!manual && !force && Date.now() - syncLastKick < 750) return Promise.resolve(false);
     syncLastKick = Date.now(); syncBackgrounded = false;
     syncCancelRequest(); syncFailures = 0; syncRetryAt = 0; syncRetryStatus = 0;
-    if (navigator.onLine !== false) state.sync.status = "connecting";
+    if (navigator.onLine !== false) state.store.status = "connecting";
     return syncTick();
   }
   function syncManualSetBusy(on) {
@@ -1430,7 +1487,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     });
   }
   function syncManual() {
-    if (!syncPaired()) { toast("Conecte este aparelho a uma sala"); return; }
+    if (!storeLinked()) { toast("Conecte este aparelho a uma sala"); return; }
     var now = Date.now();
     // Debounce: toques repetidos dentro da janela são ignorados em silêncio
     // (sem toast, sem re-kick) — fim do pisca-pisca no botão.
@@ -1443,7 +1500,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       toast("Sincronização em andamento");
       return Promise.resolve(pending).catch(function () {}).finally(function () { syncManualSetBusy(false); });
     }
-    state.sync.enabled = true; persist(false);
+    state.store.enabled = true; persist(false);
     if (navigator.onLine !== false && now >= syncRetryAt) toast("Sincronizando com a sala…");
     syncManualPromise = Promise.resolve(syncKick(true)).catch(function () { return false; }).finally(function () {
       syncManualPromise = null; syncManualSetBusy(false); syncPaintDot();
@@ -1457,47 +1514,47 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     return minutes < 60 ? minutes + "min " + seconds % 60 + "s" : Math.floor(minutes / 60) + "h " + minutes % 60 + "min";
   }
   function networkEvent(status, detail, extra) {
-    state.sync.events = (state.sync.events || []).concat([Object.assign({ at: Date.now(), status: status, detail: detail }, extra || {})]).slice(-100);
+    state.store.events = (state.store.events || []).concat([Object.assign({ at: Date.now(), status: status, detail: detail }, extra || {})]).slice(-100);
     persist(false);
     networkPaintDetails();
   }
   function networkOffline(status, detail) {
-    var first = !state.sync.offlineSince, changed = state.sync.status !== status;
-    if (first) state.sync.offlineSince = Date.now();
-    state.sync.status = status; state.sync.lastError = detail;
-    if (first || changed) networkEvent(status, detail, { startedAt: state.sync.offlineSince });
+    var first = !state.store.offlineSince, changed = state.store.status !== status;
+    if (first) state.store.offlineSince = Date.now();
+    state.store.status = status; state.store.lastError = detail;
+    if (first || changed) networkEvent(status, detail, { startedAt: state.store.offlineSince });
     if (syncLastToast !== status) { syncLastToast = status; toast(detail); }
     syncPaintDot();
   }
   function networkOnline() {
-    var since = state.sync.offlineSince, wasOnline = state.sync.status === "online", now = Date.now();
-    state.sync.status = "online"; state.sync.lastSuccessAt = now;
-    state.sync.connectedAt = state.sync.connectedAt || now; state.sync.lastError = "";
-    state.sync.offlineSince = null; syncLastToast = "online";
+    var since = state.store.offlineSince, wasOnline = state.store.status === "online", now = Date.now();
+    state.store.status = "online"; state.store.lastSuccessAt = now;
+    state.store.connectedAt = state.store.connectedAt || now; state.store.lastError = "";
+    state.store.offlineSince = null; syncLastToast = "online";
     if (since) {
       var duration = Math.max(0, now - since);
       networkEvent("online", "Conexão restabelecida após " + networkDuration(duration), { startedAt: since, endedAt: now, durationMs: duration });
       toast("Conexão restabelecida · " + networkDuration(duration) + " offline · dados sincronizados");
     } else if (!wasOnline) {
       networkEvent("online", "Sincronização confirmada pelo servidor");
-      toast("Conexão bem-sucedida · sala " + state.sync.room + " · " + syncRoleLabel(state.sync.role));
+      toast("Conectado a " + (state.store.name || "estabelecimento") + " · " + syncRoleLabel(state.store.role));
     }
     return !!since || !wasOnline;
   }
   function networkLabel() {
-    if (!syncPaired()) return navigator.onLine === false ? "Offline" : "Online";
-    return { online: "Online", connecting: "Conectando…", off: "Pausado" }[state.sync.status] || "Offline";
+    if (!storeLinked()) return navigator.onLine === false ? "Offline" : "Online";
+    return { online: "Online", connecting: "Conectando…", off: "Pausado" }[state.store.status] || "Offline";
   }
   function networkPaintDetails() {
     var b = document.getElementById("networkdetails");
     if (!b) return;
-    var last = state.sync.lastSuccessAt;
+    var last = state.store.lastSuccessAt;
     b.innerHTML = '<p>Estado: <b>' + networkLabel() + '</b></p><p>Última confirmação da sala: ' +
       (last ? esc(new Date(last).toLocaleString("pt-BR")) : "Nenhuma") + '</p>' +
-      (state.sync.offlineSince ? '<p>Offline desde ' + esc(new Date(state.sync.offlineSince).toLocaleString("pt-BR")) + ' · ' + networkDuration(Date.now() - state.sync.offlineSince) + '</p>' : '') +
-      (state.sync.lastError ? '<p>' + esc(state.sync.lastError) + '</p>' : '') +
+      (state.store.offlineSince ? '<p>Offline desde ' + esc(new Date(state.store.offlineSince).toLocaleString("pt-BR")) + ' · ' + networkDuration(Date.now() - state.store.offlineSince) + '</p>' : '') +
+      (state.store.lastError ? '<p>' + esc(state.store.lastError) + '</p>' : '') +
       '<p>Seus pedidos continuam salvos neste aparelho. Ao reconectar, a sincronização é automática.</p>' +
-      ((state.sync.events || []).slice().reverse().map(function (e) {
+      ((state.store.events || []).slice().reverse().map(function (e) {
         return '<div class="cfg-row"><span>' + esc(new Date(e.at).toLocaleString("pt-BR")) + '<br>' + esc(e.detail) + '</span></div>';
       }).join("") || '<p class="muted">Nenhuma ocorrência registrada.</p>');
   }
@@ -1541,8 +1598,8 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   setInterval(function () {
     try {
       if (!syncActive() || document.hidden || syncRequest || navigator.onLine === false) return;
-      if ((state.sync.status || "") !== "online") return;
-      var ref = state.sync.lastPongAt || state.sync.lastSuccessAt || 0;
+      if ((state.store.status || "") !== "online") return;
+      var ref = state.store.lastPongAt || state.store.lastSuccessAt || 0;
       if (!ref || Date.now() - ref <= SYNC_PHANTOM_MS) return;
       networkEvent("phantom", "Sem resposta há " + networkDuration(Date.now() - ref) + " · reconectando");
       syncCancelRequest();
@@ -1556,7 +1613,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   function wakeLockMaybe() {
     try {
       if (!navigator.wakeLock) return;
-      if (syncPaired() && state.sync.role === "kitchen" && !document.hidden) {
+      if (storeLinked() && state.store.role === "kitchen" && !document.hidden) {
         if (_wake) return;
         navigator.wakeLock.request("screen").then(function (w) { _wake = w; w.addEventListener("release", function () { _wake = null; }); }).catch(function () {});
       } else if (_wake) { _wake.release().catch(function () {}); _wake = null; }
@@ -1571,9 +1628,9 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
         bar.innerHTML = '<span class="spin"></span><span id="reconnbartxt">Reconectando…</span>';
         (document.body || document.documentElement).appendChild(bar);
       }
-      var syncBad = syncPaired() && ["offline", "connecting", "badpin", "noroom"].indexOf(state.sync.status || "") >= 0;
+      var syncBad = storeLinked() && ["offline", "connecting", "badpin", "noroom"].indexOf(state.store.status || "") >= 0;
       var sessionBad = !!authToken && !authReady && !!state.setup && typeof isDemo === "function" && !isDemo();
-      var show = (flow === "app") && (syncBad || sessionBad) && navigator.onLine !== false || (flow === "app" && navigator.onLine === false && (syncPaired() || state.setup));
+      var show = (flow === "app") && (syncBad || sessionBad) && navigator.onLine !== false || (flow === "app" && navigator.onLine === false && (storeLinked() || state.setup));
       var txt = document.getElementById("reconnbartxt");
       if (txt) txt.textContent = navigator.onLine === false ? "Sem internet · seus dados estão salvos aqui" : "Reconectando…";
       bar.classList.toggle("on", !!show);
@@ -1581,16 +1638,16 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   }
   function syncPaintDot() {
     var d = document.getElementById("syncdot");
-    var s = syncPaired() ? state.sync.status || "off" : navigator.onLine === false ? "offline" : "online";
+    var s = storeLinked() ? state.store.status || "off" : navigator.onLine === false ? "offline" : "online";
     if (d) d.className = "syncdot s-" + s;
     var label = document.getElementById("networklabel"), button = document.getElementById("networkstatus");
     if (label) label.textContent = networkLabel();
     if (button) {
-      button.title = syncPaired() ? (state.sync.lastError || "Conexão com a sala · toque para sincronizar ou ver o histórico") : "Estado da rede do aparelho · conecte uma sala para sincronizar";
+      button.title = storeLinked() ? (state.store.lastError || "Conexão com a sala · toque para sincronizar ou ver o histórico") : "Estado da rede do aparelho · conecte uma sala para sincronizar";
       button.setAttribute("aria-label", "Conexão: " + networkLabel() + ". Abrir sincronização e histórico");
     }
     ["syncmanual", "syncmanualcfg"].forEach(function (id) {
-      var b = document.getElementById(id); if (b) b.disabled = !!syncManualPromise || syncBusy || !syncPaired();
+      var b = document.getElementById(id); if (b) b.disabled = !!syncManualPromise || syncBusy || !storeLinked();
     });
     var status = document.getElementById("networkcfgstatus"); if (status) status.textContent = networkLabel();
     paintReconnBar();
@@ -1603,7 +1660,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   var _notifReady = false;           // pula o 1º merge (payload inicial não é "novidade")
   var _notifPermAsked = false;
   function notifRoles() {            // o que ESTE aparelho quer ser avisado, por papel
-    var r = syncPaired() ? state.sync.role : "full";
+    var r = storeLinked() ? state.store.role : "full";
     if (r === "kitchen") return { kitchen: 1 };
     if (r === "waiter") return { ready: 1 };
     if (r === "cashier") return { cashier: 1, paid: 1 };
@@ -1667,7 +1724,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       if (!before.kp[id] && !before.done[id]) { newKit[after.kp[id]] = (newKit[after.kp[id]] || 0) + 1; }
     });
     Object.keys(after.done).forEach(function (id) {
-      var info = after.done[id] || {}, role = syncPaired() ? state.sync.role : "full";
+      var info = after.done[id] || {}, role = storeLinked() ? state.store.role : "full";
       var responsible = role !== "waiter" || !info.byId || info.byId === state.activeStaffId;
       if (before.kp[id] && responsible) { becameReady++; readyTables[info.table || before.kp[id]] = 1; }
     });
@@ -1715,163 +1772,136 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     if (r === "kitchen") return [["cozinha", "Cozinha", "pan"]];
     return null; // full -> usa as abas da função da equipe
   }
-  // QR de verdade (lib qrcode-generator embutida). Payload: PEDEAI:SALA:PIN
-  function qrSvg(txt, px) {
-    px = px || 180;
-    try {
-      var q = qrcode(0, "M"); q.addData(String(txt)); q.make();
-      var n = q.getModuleCount(), cell = px / (n + 8), off = cell * 4, d = "";
-      for (var r = 0; r < n; r++) for (var c = 0; c < n; c++) if (q.isDark(r, c))
-        d += "M" + (off + c * cell).toFixed(2) + " " + (off + r * cell).toFixed(2) + "h" + cell.toFixed(2) + "v" + cell.toFixed(2) + "h-" + cell.toFixed(2) + "z";
-      return '<svg width="' + px + '" height="' + px + '" viewBox="0 0 ' + px + ' ' + px + '" style="background:#fff;border-radius:10px">' +
-        '<path d="' + d + '" fill="#121010"/></svg>';
-    } catch (e) {
-      return '<div class="paircode"><span>Sala/PIN</span><b class="mono" style="font-size:18px">' + esc(txt) + '</b></div>';
-    }
-  }
-  function syncCreateRoom() {
-    state.sync = { room: roomCode(), pin: pinCode(), mk: mkCode(), needCreate: true, role: "full", enabled: true, server: state.sync.server || "", cfgAt: Date.now(), tomb: {}, status: "off" };
-    state.sync.rolePins = rolePins(state.sync.pin);
-    persist(); syncStart(); haptic(10);
-    if (flow === "app") renderApp();
-    syncCodeSheet(true);
-  }
-  function syncCodeSheet(justCreated, shareRole) {
-    if (!state.sync.mk) { toast("Peça ao dono o PIN da função"); return; }
-    if (!state.sync.rolePins) { state.sync.rolePins = rolePins(state.sync.pin); persist(); }
-    shareRole = shareRole || "waiter";
-    var sharePin = state.sync.rolePins[shareRole];
-    openSheet("Parear aparelhos", function (b) {
-      b.innerHTML =
-        (justCreated ? '<p class="muted" style="font-size:14px;margin-bottom:14px">Sala criada. Nos <b>outros aparelhos</b> (garçons, caixa, cozinha): PedeAí → "Conectar" → escaneie o QR ou digite:</p>'
-                     : '<p class="muted" style="font-size:14px;margin-bottom:14px">Nos outros aparelhos: PedeAí → "Conectar" → escaneie o QR ou digite:</p>') +
-        '<div style="text-align:center;margin-bottom:14px">' + qrSvg("PEDEAI:" + state.sync.room + ":" + sharePin, 200) + '</div>' +
-        '<div class="paircode"><span>Sala</span><b class="mono">' + esc(state.sync.room) + '</b></div>' +
-        '<div class="paircode"><span>PIN</span><b class="mono">' + esc(sharePin) + '</b></div>' +
-        '<p class="muted" style="font-size:12px;margin-top:12px">Este PIN autoriza somente a função escolhida. Compartilhe apenas com a equipe dessa função.</p>';
-      var select = document.createElement("select"); select.setAttribute("aria-label", "Função do convite");
-      select.innerHTML = [["waiter", "Garçom"], ["cashier", "Caixa"], ["kitchen", "Cozinha"]].map(function (r) { return '<option value="' + r[0] + '"' + (r[0] === shareRole ? ' selected' : '') + '>' + r[1] + '</option>'; }).join("");
-      select.onchange = function () { closeSheet(); syncCodeSheet(false, select.value); }; b.prepend(select);
-    }, function (f) {
-      var c = document.createElement("button"); c.className = "btn red block lg slab"; c.textContent = "Copiar sala e PIN";
-      c.onclick = function () { var s = "PedeAí — Sala: " + state.sync.room + "  Função: " + syncRoleLabel(shareRole) + "  PIN: " + sharePin; try { navigator.clipboard.writeText(s); toast("Copiado"); } catch (e) { showTextSheet("Sala e PIN", s); } };
-      f.appendChild(c);
-    });
-  }
-  function syncJoinSheet(preRole, prefillRoom) {
-    var role = preRole || "waiter";
-    openSheet("Conectar a um bar", function (b) {
-      b.innerHTML =
-        (syncCanScan() ? '<button class="btn ghost block" id="jscan" style="margin-bottom:14px">' + ic("eye", 18) + ' Escanear QR</button>' : '') +
-        '<label class="field"><span>Código da sala</span><input id="jr" autocapitalize="characters" maxlength="6" value="' + esc(prefillRoom || "") + '" placeholder="ABC123" style="text-transform:uppercase;letter-spacing:.3em;font-family:\'Spline Sans Mono\',monospace"></label>' +
-        '<label class="field pinrow"><span>PIN (6 dígitos)</span><input id="jp" inputmode="numeric" maxlength="6" placeholder="000000"></label>' +
-        '<div style="font-size:12px;font-weight:800;color:var(--bone-dim);text-transform:uppercase;letter-spacing:.05em;margin:6px 0 8px">Papel deste aparelho</div>' +
-        '<div class="seg" id="jrole" style="flex-wrap:wrap">' + SYNC_ROLES.filter(function (o) { return o[0] !== "full"; }).map(function (o) { return '<button data-r="' + o[0] + '" class="' + (o[0] === role ? "on" : "") + '" style="flex:1 0 40%">' + o[1] + '</button>'; }).join("") + '</div>' +
-        '<p class="muted" style="font-size:11.5px;margin-top:8px">Caixa: mesas + fecha conta. Garçom: mesas + cozinha. Cozinha: só a tela de preparo. Use o PIN fornecido pelo dono para a função selecionada.</p>';
-      setTimeout(function () { var i = b.querySelector("#jr"); if (i) i.focus(); }, 60);
-      b.querySelectorAll("#jrole button").forEach(function (bt) {
-        bt.onclick = function () { role = bt.dataset.r; b.querySelectorAll("#jrole button").forEach(function (x) { x.classList.toggle("on", x === bt); }); };
-      });
-      var sb = b.querySelector("#jscan");
-      if (sb) sb.onclick = function () {
-        syncScan(function (rm, pn) {
-          b.querySelector("#jr").value = rm; b.querySelector("#jp").value = pn;
-          haptic(12); toast("QR lido — confira o papel e conecte");
+  // ================= estabelecimento e equipe =================
+  // Sem QR, sem código de sala, sem PIN: o vínculo é pela conta. O dono cria o
+  // estabelecimento; a equipe entra por convite (link/e-mail) com a própria conta.
+  function storeLinkSheet() {
+    if (!authReady || !authToken) { toast("Entre na sua conta para usar vários aparelhos"); renderAuthGate("choose"); return; }
+    openSheet("Estabelecimento", function (b) {
+      b.innerHTML = '<p class="muted" style="font-size:13px;margin-bottom:12px">Carregando seus estabelecimentos…</p>';
+      storeList().then(function (j) {
+        var stores = (j && j.stores) || [];
+        var rows = stores.map(function (st) {
+          var mine = state.store && state.store.id === st.id;
+          return '<button class="cfg-row act" data-sid="' + st.id + '">' + esc(st.name) +
+            '<span class="right muted">' + syncRoleLabel(st.role) + (mine ? " · atual" : "") + '</span></button>';
+        }).join("");
+        b.innerHTML = (rows ? '<div style="font-size:12px;font-weight:800;color:var(--bone-dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Seus estabelecimentos</div>' + rows
+          : '<p class="muted" style="font-size:13px;margin-bottom:12px">Você ainda não tem nenhum estabelecimento.</p>') +
+          '<button class="cfg-row act" id="stcreate">' + ic("plus", 17) + ' Criar estabelecimento</button>' +
+          '<button class="cfg-row" id="stinvite">' + ic("people", 17) + ' Entrar com um convite</button>';
+        b.querySelectorAll("[data-sid]").forEach(function (el) {
+          el.onclick = function () {
+            var st = stores.filter(function (x) { return String(x.id) === el.dataset.sid; })[0];
+            if (st) { storeAdopt(st); closeSheet(); haptic(8); flow = "app"; renderAll(); toast("Conectado a " + st.name); }
+          };
         });
-      };
+        b.querySelector("#stcreate").onclick = function () { closeSheet(); storeCreateSheet(); };
+        b.querySelector("#stinvite").onclick = function () { closeSheet(); inviteSheet(); };
+      }).catch(function () {
+        b.innerHTML = '<p class="muted" style="font-size:13px">Sem conexão agora. Seus dados locais continuam salvos; tente de novo quando a internet voltar.</p>';
+      });
+    });
+  }
+  function storeCreateSheet() {
+    openSheet("Criar estabelecimento", function (b) {
+      b.innerHTML = '<label class="field"><span>Nome do estabelecimento</span><input id="stname" maxlength="60" placeholder="Ex.: Bar do Cacau" autocapitalize="words"></label>' +
+        '<p class="muted" style="font-size:12px;margin-top:8px">Você fica como responsável. Depois convide a equipe (caixa, garçom, cozinha) por e-mail.</p>';
+      setTimeout(function () { var i = b.querySelector("#stname"); if (i) i.focus(); }, 60);
     }, function (f) {
-      var ok = document.createElement("button"); ok.className = "btn red block lg slab"; ok.textContent = "Conectar";
+      var ok = document.createElement("button"); ok.className = "btn red block lg slab"; ok.textContent = "Criar";
       ok.onclick = function () {
-        var rm = (scrim.querySelector("#jr").value || "").trim().toUpperCase().replace(/[^A-Z2-9]/g, "");
-        var pn = (scrim.querySelector("#jp").value || "").replace(/\D/g, "");
-        if (rm.length < 6 || pn.length < 6) { toast("Código e PIN de 6"); return; }
-        state.sync = { room: rm, pin: pn, role: role, enabled: true, server: state.sync.server || "", cfgAt: 0, tomb: {}, status: "off" };
-        state.setup = true;
-        persist(); closeSheet(); haptic(10);
-        flow = "app"; current = role === "kitchen" ? "cozinha" : "mesas"; openTableId = null;
-        renderAll(); syncStart(); wakeLockMaybe();
-        toast("Conectando…");
+        var name = (scrim.querySelector("#stname").value || "").trim();
+        if (name.length < 2) { toast("Dê um nome ao estabelecimento"); return; }
+        ok.disabled = true;
+        storeCreate(name).then(function (j) {
+          if (j && j.store) { state.setup = true; persist(); closeSheet(); haptic(10); flow = "app"; renderAll(); toast("Estabelecimento criado"); }
+          else { ok.disabled = false; toast((j && j.error) || "Não foi possível criar agora"); }
+        }).catch(function () { ok.disabled = false; toast("Sem conexão; tente de novo"); });
       };
       f.appendChild(ok);
     });
   }
-  // Troca de papel sem travar o aparelho: derruba TUDO que a sessão do papel
-  // antigo mantinha aberto (request em voo, timer, promessa manual, wakeLock),
-  // avisa o servidor que o papel velho saiu (some do painel na hora) e sobe uma
-  // presença nova pra um "leave" atrasado do papel anterior não desconectar esta.
-  function syncSwitchRole(newRole) {
-    if (!state.sync) return;
-    if (state.sync.role === newRole) { renderAll(); wakeLockMaybe(); return; }
-    var prev = { room: state.sync.room, pin: state.sync.pin, role: state.sync.role,
-      mk: state.sync.mk || "", server: state.sync.server || "", presenceId: state.sync.presenceId || "" };
-    syncCancelRequest();                       // aborta fetch + limpa syncTimer + bump de epoch
-    syncFailures = 0; syncRetryAt = 0; syncRetryStatus = 0;
-    syncLastKick = 0; syncBackgrounded = false; syncPeers = []; syncLastToast = "";
-    syncManualPromise = null; syncManualLockUntil = 0;
-    try { syncLeavePresence(prev); } catch (e) {}   // beacon keepalive do papel antigo
-    state.sync.presenceId = uid();
-    state.sync.role = newRole;
-    state.sync.peers = [];
-    state.sync.status = "off";
-    state.sync.connectedAt = null;
-    state.sync.lastPongAt = 0;
-    persist();
-    renderAll();
-    try { syncStart(); } catch (e) {}
-    wakeLockMaybe();
+  function inviteSheet(prefill) {
+    openSheet("Entrar com um convite", function (b) {
+      b.innerHTML = '<p class="muted" style="font-size:13px;margin-bottom:10px">Cole o link ou o código do convite que o dono te enviou. Você precisa estar logado com a sua conta.</p>' +
+        '<label class="field"><span>Link ou código</span><input id="invtok" placeholder="pedeai.deckcorp.com.br/app/?invite=…" value="' + esc(prefill || "") + '"></label>';
+      setTimeout(function () { var i = b.querySelector("#invtok"); if (i && !prefill) i.focus(); }, 60);
+    }, function (f) {
+      var ok = document.createElement("button"); ok.className = "btn red block lg slab"; ok.textContent = "Entrar";
+      ok.onclick = function () {
+        var raw = (scrim.querySelector("#invtok").value || "").trim();
+        var m = raw.match(/invite=([A-Za-z0-9_\-]+)/);
+        var token = m ? m[1] : raw;
+        if (!token) { toast("Cole o convite"); return; }
+        ok.disabled = true;
+        inviteAccept(token).then(function (j) {
+          if (j && j.store) { state.setup = true; persist(); closeSheet(); haptic(10); flow = "app"; renderAll(); toast("Você entrou em " + j.store.name); }
+          else { ok.disabled = false; toast((j && j.error) || "Convite inválido ou já usado"); }
+        }).catch(function (e) { ok.disabled = false; toast((e && e.message) || "Não foi possível aceitar agora"); });
+      };
+      f.appendChild(ok);
+    });
   }
-  function syncChangeRoleSheet() {
-    if (!state.sync.mk) {
-      var oldRole = state.sync.role, oldRoom = state.sync.room;
-      syncUnbindRoom(); renderAll();
-      toast("Sala liberada; use o PIN do novo papel"); syncJoinSheet(oldRole, oldRoom); return;
-    }
-    var role = state.sync.role;
-    openSheet("Papel deste aparelho", function (b) {
-      b.innerHTML = '<p class="muted" style="font-size:12px;margin-bottom:10px">O aparelho principal mantém o acesso completo. Colaboradores devem usar o PIN da função fornecido pelo dono.</p><div class="seg" id="crole" style="flex-wrap:wrap">' + SYNC_ROLES.filter(function (o) { return o[0] !== "full"; }).map(function (o) { return '<button data-r="' + o[0] + '" class="' + (o[0] === role ? "on" : "") + '" style="flex:1 0 40%">' + o[1] + '</button>'; }).join("") + '</div>';
-      b.querySelectorAll("#crole button").forEach(function (bt) {
-        bt.onclick = function () { role = bt.dataset.r; b.querySelectorAll("#crole button").forEach(function (x) { x.classList.toggle("on", x === bt); }); };
+  function storeInviteSheet() {
+    if (storeRole() !== "full") { toast("Só o responsável convida a equipe"); return; }
+    var role = "waiter";
+    openSheet("Convidar pessoa", function (b) {
+      b.innerHTML = '<label class="field"><span>E-mail da pessoa</span><input id="invemail" type="email" autocapitalize="none" placeholder="pessoa@exemplo.com"></label>' +
+        '<div style="font-size:12px;font-weight:800;color:var(--bone-dim);text-transform:uppercase;letter-spacing:.05em;margin:6px 0 8px">Função</div>' +
+        '<div class="seg" id="invrole" style="flex-wrap:wrap">' + SYNC_ROLES.filter(function (o) { return o[0] !== "full"; }).map(function (o) { return '<button data-r="' + o[0] + '" class="' + (o[0] === role ? "on" : "") + '" style="flex:1 0 40%">' + o[1] + '</button>'; }).join("") + '</div>' +
+        '<div id="invout" class="muted" style="font-size:12px;margin-top:10px"></div>';
+      b.querySelectorAll("#invrole button").forEach(function (bt) {
+        bt.onclick = function () { role = bt.dataset.r; b.querySelectorAll("#invrole button").forEach(function (x) { x.classList.toggle("on", x === bt); }); };
       });
     }, function (f) {
-      var ok = document.createElement("button"); ok.className = "btn red block lg slab"; ok.textContent = "Salvar";
-      ok.onclick = function () { closeSheet(); haptic(6); syncSwitchRole(role); };
+      var ok = document.createElement("button"); ok.className = "btn red block lg slab"; ok.textContent = "Enviar convite";
+      ok.onclick = function () {
+        var email = (scrim.querySelector("#invemail").value || "").trim().toLowerCase();
+        if (email.indexOf("@") < 1) { toast("Informe o e-mail"); return; }
+        ok.disabled = true;
+        storeApi("/stores/" + state.store.id + "/invites", "POST", { email: email, role: role }).then(function (j) {
+          ok.disabled = false;
+          if (j && j.link) {
+            var out = scrim.querySelector("#invout");
+            out.innerHTML = 'Convite gerado. Enviamos por e-mail e você também pode compartilhar o link:<br><b class="mono" style="word-break:break-all">' + esc(j.link) + '</b>';
+            try { navigator.clipboard.writeText(j.link); toast("Link copiado"); } catch (e) {}
+          } else { toast((j && j.error) || "Não foi possível convidar"); }
+        }).catch(function () { ok.disabled = false; toast("Sem conexão; tente de novo"); });
+      };
       f.appendChild(ok);
+    });
+  }
+  function storeTeamSheet() {
+    if (storeRole() !== "full") return;
+    openSheet("Equipe do estabelecimento", function (b) {
+      b.innerHTML = '<p class="muted" style="font-size:13px">Carregando…</p>';
+      storeApi("/stores/" + state.store.id + "/collaborators").then(function (j) {
+        var cs = (j && j.collaborators) || [], inv = (j && j.invites) || [];
+        b.innerHTML = (cs.length ? cs.map(function (c) {
+          return '<div class="cfg-row"><span>' + esc(c.name || c.email) + '<br><span class="muted" style="font-size:11px">' + esc(c.email) + '</span></span>' +
+            '<span class="right"><select data-uid="' + c.user_id + '" class="tmr">' +
+            [["cashier", "Caixa"], ["waiter", "Garçom"], ["kitchen", "Cozinha"]].map(function (r) { return '<option value="' + r[0] + '"' + (r[0] === c.role ? ' selected' : '') + '>' + r[1] + '</option>'; }).join("") +
+            '</select> <button class="btn ghost" data-rm="' + c.user_id + '">Remover</button></span></div>';
+        }).join("") : '<p class="muted" style="font-size:13px">Ninguém na equipe ainda.</p>') +
+          (inv.length ? '<div style="font-size:12px;font-weight:800;color:var(--bone-dim);text-transform:uppercase;margin:10px 0 4px">Convites pendentes</div>' +
+            inv.map(function (i) { return '<div class="cfg-row"><span>' + esc(i.email) + '</span><span class="right muted">' + syncRoleLabel(i.role) + '</span></div>'; }).join("") : "") +
+          '<button class="cfg-row act" id="tminvite" style="margin-top:10px">' + ic("plus", 17) + ' Convidar pessoa</button>';
+        b.querySelectorAll("select.tmr").forEach(function (sel) {
+          sel.onchange = function () { storeApi("/stores/" + state.store.id + "/collaborators/" + sel.dataset.uid + "/role", "POST", { role: sel.value }).then(function () { toast("Papel atualizado"); }).catch(function () { toast("Falhou"); }); };
+        });
+        b.querySelectorAll("[data-rm]").forEach(function (bt) {
+          bt.onclick = function () { storeApi("/stores/" + state.store.id + "/collaborators/" + bt.dataset.rm + "/remove", "POST", {}).then(function () { closeSheet(); storeTeamSheet(); }); };
+        });
+        b.querySelector("#tminvite").onclick = function () { closeSheet(); storeInviteSheet(); };
+      }).catch(function () { b.innerHTML = '<p class="muted" style="font-size:13px">Sem conexão agora.</p>'; });
     });
   }
   function syncDisconnect() {
-    confirmDialog("Desconectar este aparelho da sala? Os dados que já estão aqui continuam.", "Desconectar", function () {
-      syncUnbindRoom(); renderAll();
+    confirmDialog("Desconectar este aparelho do estabelecimento? Os dados que já estão aqui continuam salvos, e sua conta segue logada.", "Desconectar", function () {
+      storeUnlink(); renderAll();
     }, true);
   }
-
-  // ---- leitor de QR (BarcodeDetector nativo) ----
-  function syncCanScan() {
-    try { return !!(window.BarcodeDetector && navigator.mediaDevices && navigator.mediaDevices.getUserMedia); } catch (e) { return false; }
-  }
-  function syncScan(onCode) {
-    var ov = document.createElement("div"); ov.className = "scanwrap";
-    ov.innerHTML = '<video playsinline autoplay muted></video><div class="scanbox"></div><button class="scanx">' + ic("x", 20) + '</button><div class="scanhint">Aponte pro QR do aparelho principal</div>';
-    document.body.appendChild(ov);
-    var video = ov.querySelector("video"), stop = false, stream = null;
-    function done() { stop = true; try { if (stream) stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} ov.remove(); }
-    ov.querySelector(".scanx").onclick = done;
-    var det; try { det = new BarcodeDetector({ formats: ["qr_code"] }); } catch (e) { toast("Sem leitor de QR"); ov.remove(); return; }
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(function (s) {
-      stream = s; video.srcObject = s; video.play();
-      function tick() {
-        if (stop) return;
-        det.detect(video).then(function (codes) {
-          if (codes && codes[0]) {
-            var m = String(codes[0].rawValue || "").match(/PEDEAI:([A-Z2-9]{4,10}):(\d{4,8})/i);
-            if (m) { done(); onCode(m[1].toUpperCase(), m[2]); return; }
-          }
-          setTimeout(tick, 350);
-        }).catch(function () { setTimeout(tick, 500); });
-      }
-      setTimeout(tick, 500);
-    }).catch(function () { toast("Não consegui abrir a câmera"); done(); });
-  }
-
   function loadDemo() {
     var m = buildMenu("bar");
     var a = { id: uid(), name: "Você (dono)", role: "admin", pin: "" };
@@ -1880,7 +1910,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     var now = Date.now();
     state = { setup: true, version: VERSION, biz: { name: "Bar do Cacau", type: "bar", logo: null }, linkedCashier: true,
       settings: { theme: "auto", haptics: true, sound: true, servicePct: 10 }, ui: { kitchenSeenAt: 0, demo: true },
-      sync: (state && state.sync) || { room: null, pin: null, role: "full", enabled: false, server: "", cfgAt: 0, tomb: {}, status: "off" },
+      sync: (state && state.store) || { room: null, pin: null, role: "full", enabled: false, server: "", cfgAt: 0, tomb: {}, status: "off" },
       staff: [a, g, c], activeStaffId: a.id, cats: m.cats, menu: m.menu,
       tables: [
         { id: uid(), name: "Mesa 3", openedAt: now - 21 * 6e4, byId: g.id, status: "aberta", note: "Aniversário — levar vela", people: 4, items: [
@@ -1971,8 +2001,8 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   function tableKitchenPending(t) { return t.items.reduce(function (a, it) { return a + (it.kitchen && !it.done ? it.qty : 0); }, 0); }
   function dayTotal() { return state.day.sales.reduce(function (a, x) { return a + x.total; }, 0); }
   function canClose() {
-    if (syncPaired()) {
-      var sr = state.sync.role;
+    if (storeLinked()) {
+      var sr = state.store.role;
       if (sr === "kitchen") return false;
       if (sr === "cashier" || sr === "full") return true;
       if (sr === "waiter") return !!state.linkedCashier;
@@ -1980,7 +2010,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     var r = activeRole(); return r === "admin" || r === "caixa" || (r === "garcom" && state.linkedCashier);
   }
   function canDiscount() {
-    if (syncPaired()) { var sr = state.sync.role; return sr === "cashier" || sr === "full"; }
+    if (storeLinked()) { var sr = state.store.role; return sr === "cashier" || sr === "full"; }
     var r = activeRole(); return r === "admin" || r === "caixa";
   }
   var ROLE_LABEL = { admin: "Admin", garcom: "Garçom", cozinha: "Cozinha", caixa: "Caixa" };
@@ -1991,8 +2021,8 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     caixa: [["mesas", "Mesas", "comanda"], ["dia", "Caixa", "bill"]]
   };
   function firstTab() {
-    if (syncPaired() && state.sync.role && state.sync.role !== "full") {
-      var st = syncRoleTabs(state.sync.role);
+    if (storeLinked() && state.store.role && state.store.role !== "full") {
+      var st = syncRoleTabs(state.store.role);
       if (st && st.length) return st[0][0];
     }
     var tabs = ROLE_TABS[activeRole()] || ROLE_TABS.admin; return tabs[0][0];
@@ -2044,7 +2074,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   function armBack() { try { history.pushState({ pa: 1 }, ""); } catch (e) {} }
   function goBack() {
     if (scrim) { closeSheet(); return; }
-    if (flow === "app" && syncPaired() && state.sync.role === "kitchen") { tryExit(); return; }
+    if (flow === "app" && storeLinked() && state.store.role === "kitchen") { tryExit(); return; }
     if (flow === "app" && openTableId) { openTableId = null; renderApp(); return; }
     if (flow === "app") {
       if (current !== firstTab()) { current = firstTab(); renderApp(); return; }
@@ -2065,11 +2095,11 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   // Quem entrou numa sala como colaborador (garçom/caixa/cozinha) precisa de uma
   // saída clara: largar a sala OU fechar o app. Sem isso o aparelho ficava preso.
   function leaveSheet() {
-    var paired = syncPaired(), collab = paired && state.sync.role !== "full";
+    var paired = storeLinked(), collab = paired && state.store.role !== "full";
     openSheet("Sair", function (b) {
       b.innerHTML = '<p style="font-size:14.5px;font-weight:600;line-height:1.5">' +
         (collab
-          ? 'Este aparelho está conectado à sala <b>' + esc(state.sync.room) + '</b> como <b>' + esc(syncRoleLabel(state.sync.role)) + '</b>.'
+          ? 'Este aparelho está conectado a <b>. + esc(state.store.name || "um estabelecimento") + .</b> como <b>. + esc(syncRoleLabel(state.store.role)) + .</b>.'
           : 'O que você quer fazer?') + '</p>';
     }, function (f) {
       if (paired) {
@@ -2087,7 +2117,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
   }
   function syncLeaveRoom() {
     var ownSetup = !!state.setupOwn && !state.ui.demo;
-    syncUnbindRoom(); current = "mesas"; openTableId = null;
+    storeUnlink(); current = "mesas"; openTableId = null;
     if (!ownSetup) flow = "welcome";
     renderAll(); toast(ownSetup ? "Desconectado da sala" : "Saiu da sala; dados locais preservados");
   }
@@ -2097,7 +2127,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       confirmDialog("Sair da demonstração? Os dados de teste deste modo serão apagados deste aparelho.", "Sair da demonstração", exitDemo, true);
       return;
     }
-    if (syncPaired()) { leaveSheet(); return; }
+    if (storeLinked()) { leaveSheet(); return; }
     confirmDialog("Sair do PedeAí? Tudo já fica salvo neste aparelho.", "Sair", doExit);
   }
   function exitDemo() {
@@ -2155,7 +2185,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     function openAdminSecret() { if (adminOpened) return; adminOpened = true; secretTaps = 0; renderAdminLogin(); }
     function wireAdminSecret(el) { if (!el) return; el.onclick = function () { secretTaps++; clearTimeout(secretTimer); secretTimer = setTimeout(function () { secretTaps = 0; }, 1800); if (secretTaps >= 3) openAdminSecret(); }; el.addEventListener("pointerdown", function () { clearTimeout(longTimer); longTimer = setTimeout(openAdminSecret, 1200); }); ["pointerup", "pointercancel", "pointerleave"].forEach(function (ev) { el.addEventListener(ev, function () { clearTimeout(longTimer); }); }); }
     wireAdminSecret(document.getElementById("adminsecret")); wireAdminSecret(document.getElementById("adminsecretword"));
-    document.getElementById("joink").onclick = function () { syncJoinSheet(); };
+    document.getElementById("joink").onclick = function () { storeLinkSheet(); };
   }
 
   // ---------- guided hands-on tutorial ----------
@@ -2345,7 +2375,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     state = { setup: true, setupOwn: true, version: VERSION, biz: { name: wiz.name, type: wiz.type, logo: wiz.logo }, linkedCashier: wiz.linked,
       settings: { theme: (state.settings && state.settings.theme) || "auto", haptics: !(state.settings && state.settings.haptics === false), sound: !(state.settings && state.settings.sound === false), servicePct: wiz.service ? 10 : 10, serviceDefault: !!wiz.service, printer: (state.settings && state.settings.printer) || { mode: "off", width: 58, showOnClose: false, autoBill: false, header: "" } },
       ui: { kitchenSeenAt: 0 },
-      sync: (state && state.sync) || { room: null, pin: null, role: "full", enabled: false, server: "", cfgAt: 0, tomb: {}, status: "off" },
+      sync: (state && state.store) || { room: null, pin: null, role: "full", enabled: false, server: "", cfgAt: 0, tomb: {}, status: "off" },
       staff: [admin], activeStaffId: admin.id, cats: m.cats, menu: m.menu, tables: [], day: { date: todayStr(), sales: [] }, history: [] };
     persist(); flow = "app"; current = "mesas"; renderAll();
     toast("Tudo pronto! Bora vender");
@@ -2353,7 +2383,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
 
   // ---------- app ----------
   function renderApp() {
-    var sr = syncPaired() ? state.sync.role : null;
+    var sr = storeLinked() ? state.store.role : null;
     var kitchen = sr === "kitchen";
     document.body.classList.toggle("kiosk", kitchen);
     var role = activeRole();
@@ -2367,13 +2397,13 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     var dot = '<button type="button" class="network-status" id="networkstatus"><span class="syncdot" id="syncdot" aria-hidden="true"></span><span id="networklabel" role="status" aria-live="polite">' + networkLabel() + '</span></button>';
     appEl.innerHTML =
       '<div class="topbar"><div class="topbar-in">' +
-        (showBack ? '<button class="backchip' + (onHome ? ' exit' : '') + '" id="topback" title="' + (onHome ? "Sair" : "Voltar") + '">' + ic("back", 20) + (onHome && (isDemo() || syncPaired()) ? '<span class="bl">sair</span>' : '') + '</button>' : '') +
+        (showBack ? '<button class="backchip' + (onHome ? ' exit' : '') + '" id="topback" title="' + (onHome ? "Sair" : "Voltar") + '">' + ic("back", 20) + (onHome && (isDemo() || storeLinked()) ? '<span class="bl">sair</span>' : '') + '</button>' : '') +
         (safeLogo(b.logo) ? '<img class="blogo" src="' + safeLogo(b.logo) + '">' : '<span class="bmark">' + mark(32, true) + '</span>') +
         '<div class="bname">' + esc(kitchen ? "Cozinha" : (b.name || "PedeAí")) + '</div>' + dot +
         (kitchen
-          ? '<button class="staffchip" id="kexit"><span class="av">' + ic("pan", 14) + '</span><span><span class="nm">Preparo</span><br><span class="rl">Sala ' + esc(state.sync.room) + ' · sair</span></span></button>'
+          ? '<button class="staffchip" id="kexit"><span class="av">' + ic("pan", 14) + '</span><span><span class="nm">Preparo</span><br><span class="rl">. + esc((state.store.name || "Preparo")) + . · sair</span></span></button>'
           : '<button class="staffchip" id="staffchip"><span class="av">' + esc(initials(st ? st.name : "")) + '</span>' +
-            '<span><span class="nm">' + esc((st ? st.name : "").split(" ")[0] || (sr && sr !== "full" ? syncRoleLabel(sr) : "—")) + '</span><br><span class="rl">' + (sr && sr !== "full" ? "Sala " + esc(state.sync.room) : (ROLE_LABEL[role] || "")) + '</span></span></button>') +
+            '<span><span class="nm">' + esc((st ? st.name : "").split(" ")[0] || (sr && sr !== "full" ? syncRoleLabel(sr) : "—")) + '</span><br><span class="rl">' + (sr && sr !== "full" ? esc(state.store.name || "") : (ROLE_LABEL[role] || "")) + '</span></span></button>') +
       '</div><div class="awning thin"></div>' +
       (licState() === "trial" ? '<div class="trialbar">Versão de teste · ' + licDaysLeft() + (licDaysLeft() > 1 ? ' dias restantes' : ' dia restante') + '</div>' : '') +
       (demoGuide ? '<div class="demobar">Modo demonstração' + (demoGuide.done ? '' : ' · guia passo a passo') + '<button id="demoexit" type="button">Sair da demonstração</button></div>' : '') +
@@ -2899,7 +2929,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
         var mm = state.menu.find(function (m) { return m.name === it.name; });
         return { id: uid(), menuId: mm ? mm.id : null, name: it.name, price: it.price, qty: it.qty, kitchen: mm ? !!mm.kitchen : false, done: true, note: it.note || "", addedAt: Date.now(), updatedAt: Date.now() };
       }) };
-    if (state.sync && state.sync.tomb) delete state.sync.tomb[s.id];
+    if (state.store && state.store.tomb) delete state.store.tomb[s.id];
     state.tables.push(t);
     state.day.sales = state.day.sales.filter(function (x) { return x.id !== s.id; });
     persist(); haptic(10); toast("Conta reaberta em " + t.name);
@@ -3070,7 +3100,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
       var accessLabel = access.status === "trial" && access.expiresAt ? "Teste grátis até " + new Date(access.expiresAt).toLocaleString("pt-BR") : access.status === "active" ? ((access.plan || "").toUpperCase() + " · " + (access.expiresAt ? "vence em " + new Date(access.expiresAt).toLocaleString("pt-BR") : "sem vencimento")) : access.status === "suspended" ? "bloqueado" : access.status === "expired" ? "expirado" : "pendente";
       ac.innerHTML = '<h4>Minha conta</h4><div class="cfg-row">E-mail<span class="right muted">' + esc(authUser.email) + '</span></div>' +
         '<div class="cfg-row">Acesso<span class="right muted">' + esc(accessLabel) + '</span></div>';
-      if (!syncPaired() || state.sync.role === "full") {
+      if (!storeLinked() || state.store.role === "full") {
         var out = document.createElement("button"); out.className = "cfg-row danger"; out.innerHTML = ic("logout", 17) + " Desconectar conta (manter dados)"; out.onclick = function () { confirmDialog("Desconectar esta conta sem apagar os dados deste aparelho?", "Desconectar", authLogout); }; ac.appendChild(out);
       }
       v.appendChild(ac);
@@ -3112,8 +3142,12 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     });
     var addS = document.createElement("button"); addS.className = "cfg-row collab-add"; addS.innerHTML = ic("plus", 17) + " Adicionar colaborador"; addS.onclick = function () { editStaff(null); }; s2.appendChild(addS);
     var invite = document.createElement("button"); invite.className = "btn red block";
-    invite.textContent = "Convidar celular de colaborador";
-    invite.onclick = function () { if (syncPaired()) syncCodeSheet(false); else syncCreateRoom(); };
+    invite.textContent = "Convidar pessoa da equipe";
+    invite.onclick = function () {
+      if (storeRole() === "full") storeInviteSheet();
+      else if (!storeLinked()) storeCreateSheet();
+      else toast("Só o responsável convida a equipe");
+    };
     s2.appendChild(invite);
     v.appendChild(s2);
 
@@ -3205,44 +3239,36 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     }
     v.appendChild(s6);
 
-    var ssec = document.createElement("div"); ssec.className = "cfg-sec"; ssec.innerHTML = '<h4>Sincronizar aparelhos</h4>';
-    if (!syncPaired()) {
-      ssec.insertAdjacentHTML("beforeend", '<div class="cfg-row"><span class="sub" style="font-size:12px">Ligue 2 ou mais aparelhos no mesmo bar (garçom/caixa + cozinha). Funciona pela internet do local; se cair, cada aparelho segue sozinho e sincroniza quando voltar.</span></div>');
-      var cr1 = document.createElement("button"); cr1.className = "cfg-row act"; cr1.innerHTML = ic("plus", 17) + " Criar sala (aparelho principal)";
-      cr1.onclick = syncCreateRoom; ssec.appendChild(cr1);
-      var cr2 = document.createElement("button"); cr2.className = "cfg-row act"; cr2.innerHTML = ic("people", 17) + " Conectar a uma sala";
-      cr2.onclick = function () { syncJoinSheet(); }; ssec.appendChild(cr2);
+    var ssec = document.createElement("div"); ssec.className = "cfg-sec"; ssec.innerHTML = '<h4>Estabelecimento e equipe</h4>';
+    if (!authReady || !authToken) {
+      ssec.insertAdjacentHTML("beforeend", '<div class="cfg-row"><span class="sub" style="font-size:12px">Entre na sua conta para conectar vários aparelhos no mesmo estabelecimento. O app continua funcionando offline sem conta.</span></div>');
+      var la = document.createElement("button"); la.className = "cfg-row act"; la.innerHTML = ic("user", 17) + " Entrar na conta";
+      la.onclick = function () { renderAuthGate("choose"); }; ssec.appendChild(la);
+    } else if (!storeLinked()) {
+      ssec.insertAdjacentHTML("beforeend", '<div class="cfg-row"><span class="sub" style="font-size:12px">Crie o estabelecimento (você fica como responsável) ou entre com um convite. Cada pessoa usa a própria conta — sem código de sala, sem PIN.</span></div>');
+      var cr1 = document.createElement("button"); cr1.className = "cfg-row act"; cr1.innerHTML = ic("plus", 17) + " Criar estabelecimento";
+      cr1.onclick = storeCreateSheet; ssec.appendChild(cr1);
+      var cr2 = document.createElement("button"); cr2.className = "cfg-row act"; cr2.innerHTML = ic("people", 17) + " Entrar com um convite";
+      cr2.onclick = function () { inviteSheet(); }; ssec.appendChild(cr2);
+      var cr3 = document.createElement("button"); cr3.className = "cfg-row"; cr3.innerHTML = 'Meus estabelecimentos<span class="right muted">›</span>';
+      cr3.onclick = storeLinkSheet; ssec.appendChild(cr3);
     } else {
-      var stt = { connecting: "conectando…", online: "sincronizado", offline: "sem conexão (offline)", badpin: "acesso recusado", noroom: "sala não existe", off: "pausado" }[(state.sync.status || "off")] || "";
+      var stt = { connecting: "conectando…", online: "sincronizado", offline: "sem internet", badpin: "sessão recusada", noroom: "estabelecimento indisponível", off: "pausado" }[(state.store.status || "off")] || "";
       ssec.insertAdjacentHTML("beforeend",
-        '<div class="cfg-row">Sala<span class="right muted mono">' + esc(state.sync.room) + '</span></div>' +
-        '<div class="cfg-row">Papel<span class="right muted">' + esc(syncRoleLabel(state.sync.role)) + '</span></div>' +
+        '<div class="cfg-row">Estabelecimento<span class="right muted">' + esc(state.store.name || "—") + '</span></div>' +
+        '<div class="cfg-row">Seu papel<span class="right muted">' + esc(syncRoleLabel(state.store.role)) + '</span></div>' +
         '<div class="cfg-row">Situação<span class="right muted" id="networkcfgstatus">' + stt + '</span></div>' +
-        (state.sync.status === "online" ? '<div class="cfg-row">Pareados agora<span class="right muted">' + ((state.sync.peers || syncPeers).length || 1) + ' aparelho(s)</span></div>' : ''));
-      var sc1 = document.createElement("button"); sc1.className = "cfg-row act"; sc1.innerHTML = ic("share", 17) + " Mostrar QR / código pra parear";
-      sc1.onclick = function () { syncCodeSheet(false); }; ssec.appendChild(sc1);
-      var sc2 = document.createElement("button"); sc2.className = "cfg-row"; sc2.innerHTML = 'Papel deste aparelho<span class="right muted">' + syncRoleLabel(state.sync.role) + ' ›</span>';
-      sc2.onclick = syncChangeRoleSheet; ssec.appendChild(sc2);
-      var sc3 = document.createElement("button"); sc3.className = "cfg-row"; sc3.innerHTML = 'Servidor<span class="right muted" style="font-size:11px">' + esc((state.sync.server || "padrão")) + '</span>';
-      sc3.onclick = function () {
-        openSheet("Servidor de sincronização", function (b) {
-          b.innerHTML = '<p class="muted" style="font-size:13px;margin-bottom:8px">Deixe em branco pra usar o padrão (' + SYNC_DEFAULT_URL + ').</p><label class="field"><span>URL do /sync</span><input id="sv" value="' + esc(state.sync.server || "") + '" placeholder="' + SYNC_DEFAULT_URL + '"></label>';
-        }, function (f) {
-          var ok = document.createElement("button"); ok.className = "btn red block lg slab"; ok.textContent = "Salvar";
-          ok.onclick = function () {
-            var u = (scrim.querySelector("#sv").value || "").trim();
-            if (u && !/^https:\/\/[^\s/]+/i.test(u)) { haptic([15, 50, 15]); toast("Use um endereço https://"); return; }
-            state.sync.server = u; persist(); syncStop(); syncStart(); closeSheet(); renderView();
-          };
-          f.appendChild(ok);
-        });
-      }; ssec.appendChild(sc3);
-      var sc4 = document.createElement("button"); sc4.className = "cfg-row danger"; sc4.style.color = "#f0897b"; sc4.textContent = "Desconectar";
+        (state.store.status === "online" ? '<div class="cfg-row">Conectados agora<span class="right muted">' + ((state.store.peers || syncPeers).length || 1) + ' aparelho(s)</span></div>' : ''));
+      if (storeRole() === "full") {
+        var sc1 = document.createElement("button"); sc1.className = "cfg-row act"; sc1.innerHTML = ic("people", 17) + " Equipe e convites";
+        sc1.onclick = storeTeamSheet; ssec.appendChild(sc1);
+      }
+      var sc5 = document.createElement("button"); sc5.className = "cfg-row"; sc5.innerHTML = 'Trocar de estabelecimento<span class="right muted">›</span>';
+      sc5.onclick = storeLinkSheet; ssec.appendChild(sc5);
+      var sc4 = document.createElement("button"); sc4.className = "cfg-row danger"; sc4.style.color = "#f0897b"; sc4.textContent = "Desconectar este aparelho";
       sc4.onclick = syncDisconnect; ssec.appendChild(sc4);
-    }
-    if (syncPaired()) {
       var manual = document.createElement("button"); manual.id = "syncmanualcfg"; manual.className = "btn bone block";
-      manual.textContent = "Sincronizar Manualmente"; manual.onclick = syncManual;
+      manual.textContent = "Sincronizar agora"; manual.onclick = syncManual;
       manual.disabled = (syncBusy && !syncBackgrounded) || Date.now() < syncManualLockUntil;
       ssec.appendChild(manual);
     }
@@ -3627,7 +3653,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     if (!v) { v = (Date.now().toString(36) + Math.random().toString(36).slice(2, 12)); try { localStorage.setItem(IIDKEY, v); } catch (e) {} }
     return v;
   }
-  function syncBase() { return syncUrl().replace(/\/sync\/?$/i, ""); }
+  function syncBase() { return SYNC_URL.replace(/\/sync\/?$/i, ""); }
   function verCmp(a, b) {
     var pa = String(a || "0").split("."), pb = String(b || "0").split(".");
     for (var i = 0; i < Math.max(pa.length, pb.length); i++) {
@@ -3657,7 +3683,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     try { last = parseInt(localStorage.getItem(BEATKEY), 10) || 0; } catch (e) {}
     if (!force && Date.now() - last < UPD_THROTTLE) return;
     try { localStorage.setItem(BEATKEY, String(Date.now())); } catch (e) {}
-    var body = { id: updInstallId(), v: VERSION, role: (syncPaired() ? state.sync.role : "solo") };
+    var body = { id: updInstallId(), v: VERSION, role: (storeLinked() ? state.store.role : "solo") };
     try {
       fetch(syncBase() + "/beat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
         .then(function (r) { return r.ok ? r.json() : null; })
@@ -3721,9 +3747,26 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
     } catch (e) {}
   }
 
+  // Convite via link (pedeai.deckcorp.com.br/app/?invite=TOKEN) — guarda e trata
+  // depois que a conta estiver pronta.
+  var _pendingInvite = "";
+  try {
+    var _iv = new URLSearchParams(location.search).get("invite");
+    if (_iv) {
+      _pendingInvite = _iv;
+      try { history.replaceState(null, "", location.pathname); } catch (e) {}
+    }
+  } catch (e) {}
+  function handlePendingInvite() {
+    if (!_pendingInvite) return;
+    if (!authReady || !authToken) { toast("Entre na sua conta para aceitar o convite"); renderAuthGate("choose"); return; }
+    var tok = _pendingInvite; _pendingInvite = "";
+    inviteSheet(tok);
+  }
+
   authInit().then(function (ok) {
-    if (!ok) { licInit().then(function () { updBeat(); renderAll(); }); return; }
-    authRestore().then(function () { licInit().then(function () { renderAll(); syncStart(); wakeLockMaybe(); updBeat(); }, function () { renderAll(); syncStart(); updBeat(); }); });
+    if (!ok) { licInit().then(function () { updBeat(); renderAll(); if (_pendingInvite) toast("Entre na sua conta para aceitar o convite"); }); return; }
+    authRestore().then(function () { licInit().then(function () { renderAll(); syncStart(); wakeLockMaybe(); updBeat(); handlePendingInvite(); }, function () { renderAll(); syncStart(); updBeat(); handlePendingInvite(); }); });
   });
 })();
 </script>

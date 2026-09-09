@@ -830,7 +830,7 @@
       var account = await authApi("/auth/me");
       authUser = account.user; authReady = true;
       await authRestore(); await licInit();
-      if (state.setup) { flow = "app"; renderAll(); }
+      if (state.setup) { flow = "app"; renderAll(); ensureOwnerStore(); }
       else { startTutorial(); }   // conta nova sem bar configurado -> onboarding
       syncStart(); wakeLockMaybe(); updBeat();
       if (authUser.access && authUser.access.status === "trial" && authUser.access.active) {
@@ -1884,8 +1884,7 @@
             '<span class="right muted">' + syncRoleLabel(st.role) + (mine ? " · atual" : "") + '</span></button>';
         }).join("");
         b.innerHTML = (rows ? '<div style="font-size:12px;font-weight:800;color:var(--bone-dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Seus estabelecimentos</div>' + rows
-          : '<p class="muted" style="font-size:13px;margin-bottom:12px">Você ainda não tem nenhum estabelecimento.</p>') +
-          '<button class="cfg-row act" id="stcreate">' + ic("plus", 17) + ' Criar estabelecimento</button>' +
+          : '<p class="muted" style="font-size:13px;margin-bottom:12px">A loja é criada automaticamente no cadastro. Para entrar em outra loja, use um convite.</p>') +
           '<button class="cfg-row" id="stinvite">' + ic("people", 17) + ' Entrar com um convite</button>';
         b.querySelectorAll("[data-sid]").forEach(function (el) {
           el.onclick = function () {
@@ -1893,7 +1892,6 @@
             if (st) { storeAdopt(st); closeSheet(); haptic(8); flow = "app"; renderAll(); toast("Conectado a " + st.name); }
           };
         });
-        b.querySelector("#stcreate").onclick = function () { closeSheet(); storeCreateSheet(); };
         b.querySelector("#stinvite").onclick = function () { closeSheet(); inviteSheet(); };
       }).catch(function () {
         b.innerHTML = '<p class="muted" style="font-size:13px">Sem conexão agora. Seus dados locais continuam salvos; tente de novo quando a internet voltar.</p>';
@@ -1917,6 +1915,28 @@
         }).catch(function () { ok.disabled = false; toast("Sem conexão; tente de novo"); });
       };
       f.appendChild(ok);
+    });
+  }
+  var storeProvisionBusy = false;
+  function ensureOwnerStore() {
+    if (!authReady || !authToken || isDemo() || storeLinked() || !state.setupOwn || storeProvisionBusy) return;
+    var name = (state.biz && state.biz.name || "").trim();
+    if (name.length < 2) return;
+    storeProvisionBusy = true;
+    state.store.provisioning = true;
+    storeList().then(function (j) {
+      var owned = ((j && j.stores) || []).filter(function (s) { return s && s.role === "full"; })[0];
+      return owned ? Promise.resolve({ store: owned }) : storeCreate(name);
+    }).then(function (j) {
+      if (j && j.store) {
+        storeAdopt(j.store); state.setup = true; persist(false);
+        toast("Sua loja está pronta. Agora você pode adicionar atendentes por e-mail.");
+      }
+    }).catch(function () {
+      if (state.store) { state.store.provisioning = false; state.store.provisionError = true; }
+    }).finally(function () {
+      storeProvisionBusy = false;
+      if (flow === "app" && current === "config") renderView();
     });
   }
   function inviteSheet(prefill) {
@@ -2628,6 +2648,7 @@
       sync: (state && state.store) || { room: null, pin: null, role: "full", enabled: false, server: "", cfgAt: 0, tomb: {}, status: "off" },
       staff: [admin], activeStaffId: admin.id, cats: m.cats, menu: m.menu, tables: [], day: { date: todayStr(), sales: [] }, history: [] };
     persist(); flow = "app"; current = "mesas"; renderAll();
+    ensureOwnerStore();
     toast("Tudo pronto! Bora vender");
   }
 
@@ -3463,9 +3484,9 @@
       var la = document.createElement("button"); la.className = "cfg-row act"; la.innerHTML = ic("user", 17) + " Entrar na conta";
       la.onclick = function () { flow = "welcome"; renderWelcome(); }; s2.appendChild(la);
     } else if (!storeLinked()) {
-      s2.insertAdjacentHTML("beforeend", '<div class="cfg-row"><span class="sub" style="font-size:12px">Crie sua loja (você fica como responsável) ou entre com um convite. Cada pessoa usa a própria conta.</span></div>');
-      var cr1 = document.createElement("button"); cr1.className = "cfg-row act"; cr1.innerHTML = ic("plus", 17) + " Criar loja";
-      cr1.onclick = storeCreateSheet; s2.appendChild(cr1);
+      ensureOwnerStore();
+      var provisioning = !!(state.store && state.store.provisioning);
+      s2.insertAdjacentHTML("beforeend", '<div class="cfg-row"><span class="sub" style="font-size:12px">Sua loja é criada automaticamente no cadastro. ' + (provisioning ? "Estamos preparando o acesso…" : "") + '</span></div>');
       var cr2 = document.createElement("button"); cr2.className = "cfg-row act"; cr2.innerHTML = ic("people", 17) + " Entrar com um convite";
       cr2.onclick = function () { inviteSheet(); }; s2.appendChild(cr2);
       var cr3 = document.createElement("button"); cr3.className = "cfg-row"; cr3.innerHTML = 'Minhas lojas<span class="right muted">›</span>';

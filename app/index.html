@@ -531,7 +531,7 @@
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.13.1";
+  var KEY = "pedeai.v2", VERSION = "4.13.2";
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- logger de erros (silencioso -> backend -> erros_pedeai.log) ----------
@@ -665,7 +665,7 @@
   }
   function licState() {
     // A licença da conta acompanha o e-mail e vale em qualquer aparelho.
-    // Colaboradores pareados usam a licença do responsável pela sala.
+    // Colaboradores usam a licença do responsável pelo estabelecimento.
     if (typeof storeLinked === "function" && storeLinked() && state.store && state.store.role && state.store.role !== "full") return "unlocked";
     if (authUser && authUser.access) {
       if (authUser.access.active) return authUser.access.status === "trial" ? "trial" : "unlocked";
@@ -722,15 +722,45 @@
     } catch (e) {
       if (authToken !== token) return false;
       var transient = !e.status || e.status >= 500 || e.status === 408 || e.status === 429;
-      // Se o app JÁ está configurado, qualquer falha vira "reconectar" — nunca
-      // derruba pro login no meio do expediente. Só authLogout() encerra a sessão.
-      authSessionUnavailable = transient || !!(state && state.setup);
-      if (authSessionUnavailable) {
+      if (transient) {
+        // Rede/servidor: reconecta em silêncio pra sempre — nunca tira o bar da
+        // comanda por um soluço de conexão.
+        authHardFails = 0;
+        authSessionUnavailable = true;
         clearTimeout(authSessionTimer);
         authSessionTimer = setTimeout(authResumeSession, Math.max(networkBackoff(++authSessionAttempt), e.retryAfter || 0));
-      } else authReady = false;
+        return authReady;
+      }
+      // 401/403 definitivo = o token morreu. Insistir não resolve. Depois de 1
+      // repetição (fluke), encerra a sessão e volta suavemente pro login.
+      authHardFails = (authHardFails || 0) + 1;
+      if (authHardFails >= 2) { authSessionLost(); return false; }
+      authSessionUnavailable = true;
+      clearTimeout(authSessionTimer);
+      authSessionTimer = setTimeout(authResumeSession, 1500);
       return authReady;
     } finally { authSessionBusy = false; }
+  }
+  var authHardFails = 0;
+  // Sessão da CONTA perdida (token revogado/expirado): limpa a sessão e a loja
+  // ativa e leva pro login. Os dados locais da comanda NÃO são tocados.
+  function authSessionLost() {
+    authHardFails = 0; authSessionUnavailable = false; authReady = false;
+    clearTimeout(authSessionTimer);
+    var s = authPlugin("SecureStorage"); try { if (s && s.remove) s.remove({ key: "pedeai.auth.token" }); } catch (e) {}
+    try { localStorage.removeItem("pedeai.auth.token"); } catch (e) {}
+    authToken = ""; authUser = null;
+    try { syncResetRuntime(); } catch (e) {}
+    if (state && state.store && state.store.id) {
+      var ev = (state.store.events || []).concat([{ at: Date.now(), status: "auth-lost", detail: "Conta desconectada — entre de novo" }]).slice(-100);
+      state.store = { id: null, name: "", role: "full", enabled: true, jwt: "", jwtExp: 0,
+        cfgAt: state.store.cfgAt || 0, tomb: state.store.tomb || {}, _tombPending: {}, status: "off", authFails: 0, stuckSince: 0, events: ev };
+      try { persist(); } catch (e) {}
+    }
+    authFlowId = (authUser && authUser.email) || authFlowId || "";
+    toast("Sua conta foi desconectada — entre de novo");
+    flow = "welcome";
+    renderWelcome("Sessão expirada. Entre de novo para continuar.");
   }
   function authResumeSession() {
     if (!authSessionUnavailable || authSessionBusy || !authToken) return;
@@ -753,8 +783,9 @@
       var account = await authApi("/auth/me");
       authUser = account.user; authReady = true;
       await authRestore(); await licInit();
-      if (state.setup) flow = "app";
-      renderAll(); syncStart(); wakeLockMaybe(); updBeat();
+      if (state.setup) { flow = "app"; renderAll(); }
+      else { startTutorial(); }   // conta nova sem bar configurado -> onboarding
+      syncStart(); wakeLockMaybe(); updBeat();
       if (authUser.access && authUser.access.status === "trial" && authUser.access.active) {
         toast("Teste grátis de 15 dias · válido até " + new Date(authUser.access.expiresAt).toLocaleString("pt-BR"));
       }
@@ -788,22 +819,18 @@
     appEl.innerHTML = '<div class="app-lock"><div class="lock-card">' + mark(58) + '<h1 class="anton" style="font-size:30px;margin:18px 0 10px">PedeAí bloqueado</h1><p class="ob-tag" style="color:#fff">Use a digital, o rosto ou o PIN do aparelho para continuar.</p><button class="btn bone block xl slab" id="unlockapp">Desbloquear</button></div></div>';
     document.getElementById("unlockapp").onclick = appUnlock;
   }
-  function authEmailOnly(mode) { var g = document.getElementById("authgooglewrap"); if (g) g.remove(); var e = document.getElementById("authemail"); if (e && mode === "loginEmail") { e.type = "text"; e.placeholder = "voce@exemplo.com ou (00) 00000-0000"; var el = e.parentNode.querySelector("span"); if (el) el.textContent = "E-mail ou telefone"; } if (e && mode === "register" && !document.getElementById("authphone")) e.parentNode.insertAdjacentHTML("beforebegin", '<label class="field"><span>Telefone com DDD</span><input id="authphone" type="tel" autocomplete="tel" placeholder="(00) 00000-0000"></label>'); if (e && mode === "register") { e.type = "email"; e.placeholder = "voce@exemplo.com"; e.parentNode.querySelector("span").textContent = "E-mail"; } var p = document.getElementById("authpass"); if (p && !document.getElementById("authpassview")) { var hint = document.createElement("div"); hint.id = "authpasshint"; hint.textContent = mode === "register" ? "Use pelo menos 8 caracteres." : "Digite sua senha."; hint.style.cssText = "font-size:12px;margin-top:6px;color:#f7d4cc"; p.parentNode.appendChild(hint); p.addEventListener("input", function () { if (mode === "register") { var n = p.value.length; hint.textContent = n < 8 ? "Faltam " + (8 - n) + " caracteres." : "Senha com tamanho válido."; hint.style.color = n < 8 ? "#f7d4cc" : "#b9f5c8"; } }); var b = document.createElement("button"); b.id = "authpassview"; b.type = "button"; b.textContent = "👁"; b.className = "btn ghost"; b.style.cssText = "margin-top:8px;min-height:38px;width:auto;padding:4px 14px"; b.onclick = function () { p.type = p.type === "password" ? "text" : "password"; b.textContent = p.type === "password" ? "👁" : "🙈"; }; p.parentNode.appendChild(b); var f = document.createElement("button"); f.id = "authforgot"; f.type = "button"; f.textContent = "Esqueci minha senha"; f.className = "btn ghost"; f.style.cssText = "margin-top:8px;min-height:38px"; f.onclick = authForgotFlow; if (mode === "loginEmail") p.parentNode.appendChild(f); } }
-  function authKeepForm(mode, error, values) { renderAuthGate(mode, error); setTimeout(function () { Object.keys(values || {}).forEach(function (id) { var el = document.getElementById(id); if (el && values[id] != null) el.value = values[id]; }); authEmailOnly(mode); var p = document.getElementById("authpass"); if (p) p.dispatchEvent(new Event("input")); }, 0); }
-  async function authForgotFlow() { var identifier = prompt("Digite seu e-mail ou telefone:"); if (!identifier) return; try { await authApi("/auth/forgot", "POST", { identifier: identifier }); var code = prompt("Digite o código de 6 dígitos enviado por e-mail:"); var password = prompt("Digite a nova senha (mínimo 8 caracteres):"); if (!code || !password) return; await authApi("/auth/reset-password", "POST", { identifier: identifier, code: code, password: password }); renderAuthGate("loginEmail", "Senha redefinida. Entre com a nova senha."); } catch (e) { renderAuthGate("loginEmail", e.message || "não foi possível recuperar a senha"); } }
-  function renderAuthGate(mode, error) { var form = mode === "code" ? '<label class="field"><span>Código enviado para ' + esc(authUser && authUser.email) + '</span><input id="authcode" inputmode="numeric" maxlength="6" placeholder="000000"></label><button class="btn red block xl slab" id="authverify">Verificar e continuar</button><button class="btn ghost block" id="authresend">Reenviar código</button>' : mode === "loginEmail" || mode === "register" ? (mode === "register" ? '<label class="field"><span>Seu nome</span><input id="authname" autocomplete="name" placeholder="Como podemos chamar você?"></label>' : '') + '<label class="field"><span>E-mail ou telefone</span><input id="authemail" type="text" autocomplete="username" placeholder="voce@exemplo.com ou (00) 00000-0000"></label><label class="field"><span>Senha (mínimo 8 caracteres)</span><input id="authpass" type="password" autocomplete="' + (mode === "register" ? 'new-password' : 'current-password') + '" placeholder="••••••••"></label><button class="btn red block xl slab" id="authemailgo">' + (mode === "register" ? 'Criar conta' : 'Entrar com e-mail') + '</button>' + (mode === "loginEmail" ? '<button class="btn ghost block plain" id="adminloginfromemail" style="font-size:12px">Acesso administrativo</button>' : '') + '<button class="btn ghost block" id="authback">Voltar</button>' : '<p class="ob-tag">Entre com seu e-mail ou crie uma conta para continuar.</p><button class="btn bone block" id="authemailin">Entrar com e-mail</button><button class="btn ghost block" id="authregister">Criar conta com e-mail</button><button class="btn ghost block" id="authbackwelcome">Voltar</button>'; appEl.innerHTML = '<div class="ob"><div class="awning"></div><div class="ob-pad"><div class="ob-top"></div><div class="ob-mid">' + mark(56) + '<h1 class="anton">Entrar no PedeAí</h1><p class="ob-tag">Salve seus dados na sua conta e restaure tudo mesmo depois de trocar ou reinstalar o aparelho.</p>' + form + (error ? '<div class="ob-tag" style="color:#ffb3c1;margin-top:12px">' + esc(error) + '</div>' : '') + '</div><div class="credit">Conta protegida por e-mail e telefone</div></div></div>'; if (mode === "code") { document.getElementById("authverify").onclick = authVerifyCode; document.getElementById("authresend").onclick = authSendCode; } else if (mode === "loginEmail" || mode === "register") { document.getElementById("authemailgo").onclick = mode === "register" ? authEmailRegister : authEmailLogin; document.getElementById("authback").onclick = function () { renderAuthGate("choose"); }; var adminLink = document.getElementById("adminloginfromemail"); if (adminLink) adminLink.onclick = function () { renderAdminLogin(); }; } else { document.getElementById("authemailin").onclick = function () { renderAuthGate("loginEmail"); }; document.getElementById("authregister").onclick = function () { renderAuthGate("register"); }; document.getElementById("authbackwelcome").onclick = function () { flow = "welcome"; renderAll(); }; } }
-  var _authRenderGate = renderAuthGate; renderAuthGate = function (mode, error) { var out = _authRenderGate(mode, error); setTimeout(function () { authEmailOnly(mode); }, 0); return out; };
-  async function authEmailLogin() { var identifier = (document.getElementById("authemail") || {}).value || "", password = (document.getElementById("authpass") || {}).value || ""; if (!identifier.trim() || !password) return authKeepForm("loginEmail", "Informe seu e-mail ou telefone e a senha.", { authemail: identifier, authpass: password }); try { var j = await authApi("/auth/login", "POST", { identifier: identifier, password: password }); authToken = j.token; authUser = j.user; await authStoreToken(authToken); renderAuthGate("code"); } catch (e) { authKeepForm("loginEmail", e.message || "não foi possível entrar", { authemail: identifier, authpass: password }); } }
-  async function authEmailRegister() { var values = { authname: ((document.getElementById("authname") || {}).value || ""), authphone: ((document.getElementById("authphone") || {}).value || ""), authemail: ((document.getElementById("authemail") || {}).value || ""), authpass: ((document.getElementById("authpass") || {}).value || "") }; if (values.authpass.length < 8) return authKeepForm("register", "A senha precisa ter pelo menos 8 caracteres.", values); if (!values.authname.trim()) return authKeepForm("register", "Informe seu nome.", values); if (!values.authphone.trim()) return authKeepForm("register", "Informe seu telefone com DDD.", values); if (!values.authemail.trim()) return authKeepForm("register", "Informe seu e-mail.", values); try { var j = await authApi("/auth/register", "POST", { name: values.authname, phone: values.authphone, email: values.authemail, password: values.authpass }); authToken = j.token; authUser = j.user; await authStoreToken(authToken); renderAuthGate("code"); } catch (e) { authKeepForm("register", e.message || "não foi possível criar a conta", values); } }
-  async function authSendCode() { try { await authApi("/auth/send-code", "POST", {}); renderAuthGate("code"); } catch (e) { renderAuthGate(authUser && authUser.emailVerified ? "choose" : "code", e.message || "não foi possível enviar o código"); } }
-  async function authVerifyCode() { var v = (document.getElementById("authcode") || {}).value || ""; try { await authApi("/auth/verify-code", "POST", { code: v }); authAfterLogin(); } catch (e) { renderAuthGate("code", e.message || "código inválido"); } }
+  async function authForgotFlow() { var identifier = prompt("Digite seu e-mail ou telefone:") || authFlowId; if (!identifier) return; try { await authApi("/auth/forgot", "POST", { identifier: identifier }); var code = prompt("Digite o código de 6 dígitos enviado por e-mail:"); var password = prompt("Digite a nova senha (mínimo 8 caracteres):"); if (!code || !password) return; await authApi("/auth/reset-password", "POST", { identifier: identifier, code: code, password: password }); authFlowId = String(identifier).trim().toLowerCase(); renderAuthStep2(true, "", "Senha redefinida. Entre com a nova senha."); } catch (e) { renderAuthStep2(true, "", (e && e.message) || "não foi possível recuperar a senha"); } }
+  // Compat: chamadas antigas de renderAuthGate agora caem no fluxo unificado.
+  function renderAuthGate(mode, error) { if (mode === "code") return renderAuthCode(error); return renderWelcome(error); }
+  async function authSendCode() { try { await authApi("/auth/send-code", "POST", {}); renderAuthCode(); } catch (e) { renderAuthCode((e && e.message) || "não foi possível enviar o código"); } }
+  async function authVerifyCode() { var v = (document.getElementById("authcode") || {}).value || ""; try { await authApi("/auth/verify-code", "POST", { code: v }); authAfterLogin(); } catch (e) { renderAuthCode((e && e.message) || "código inválido"); } }
   async function authRedeemAccess() {
     var el = document.getElementById("accesscode"), code = el ? el.value : "";
     try { var j = await authApi("/auth/redeem-access", "POST", { code: code }); authUser = j.user; licInit().then(function () { renderAll(); toast("Acesso liberado"); }); }
     catch (e) { var msg = document.getElementById("accesserr"); if (msg) msg.textContent = e.message || "código inválido"; }
   }
   async function authLogout() {
-    if (storeLinked() && state.store.role !== "full") { toast("Para sair, use Sair da sala"); return; }
+    if (storeLinked() && state.store.role !== "full") { toast("Para sair, use Sair da equipe"); return; }
     if (storeLinked()) storeUnlink();
     try { await authApi("/auth/logout", "POST", {}); } catch (e) {}
     var s = authPlugin("SecureStorage"); try { if (s && s.remove) await s.remove({ key: "pedeai.auth.token" }); } catch (e) {}
@@ -1058,7 +1085,7 @@
       (t.items || []).forEach(function (it) { if (it.note == null) it.note = ""; if (!it.addedAt) it.addedAt = t.openedAt || Date.now(); });
     });
     if (state.day && state.day.sales) state.day.sales.forEach(function (s) { if (s.discount == null) s.discount = 0; if (s.pay === undefined) s.pay = null; });
-    // Migração da fase SaaS: o pareamento por sala/PIN/QR foi removido. Qualquer
+    // Migração da fase SaaS: o pareamento por código/PIN/QR foi removido. Qualquer
     // vínculo antigo (state.sync ou state.store com room/pin) é descartado — os
     // DADOS locais (mesas/vendas/cardápio) NUNCA são tocados. A pessoa reconecta
     // pela conta em Ajustes › Estabelecimento.
@@ -1070,7 +1097,7 @@
         cfgAt: 0, tomb: keepTomb, _tombPending: {}, status: "off", events: keepEvents };
     }
     if (state.store.tomb == null) state.store.tomb = {};
-    // aparelho "dono" = fez o assistente; quem só entrou numa sala não tem setup próprio
+    // aparelho "dono" = fez o assistente; quem só entrou por convite não tem setup próprio
     if (typeof state.setupOwn !== "boolean") state.setupOwn = !!(state.setup && !(state.store && state.store.id) && !(state.ui && state.ui.demo));
     (state.tables || []).forEach(function (t) {
       if (!t.updatedAt) t.updatedAt = t.openedAt || Date.now();
@@ -1100,7 +1127,7 @@
   // Cada estabelecimento (Store) tem um id no servidor. O app funciona 100%
   // offline sozinho; quando tem rede E uma conta logada, troca a sessão de conta
   // por um JWT curto ({uid, store, role}) e sincroniza mesas/itens/vendas a cada
-  // ~3s (last-write-wins por updatedAt). Sem código de sala, sem PIN, sem QR.
+  // ~3s (last-write-wins por updatedAt). Sem código, sem PIN, sem QR — o vínculo é pela conta.
   var SYNC_URL = "https://deckk.duckdns.org/sync";
   var SYNC_POLL_MS = 3000, SYNC_TIMEOUT_MS = 8000, SYNC_RETRY_MAX_MS = 15000;
   var SYNC_PHANTOM_MS = 20000;   // "online" sem nenhum pong há mais que isto = conexão fantasma
@@ -1113,7 +1140,9 @@
   var storeJwtInFlight = null;
   function storeLinked() { return !!(state.store && state.store.id); }
   function storeRole() { return (state.store && state.store.role) || "full"; }
-  function syncActive() { return storeLinked() && state.store.enabled !== false && !!authToken; }
+  // Nunca sincroniza em demonstração: ambiente 100% local/mock, sem conta, sem
+  // JWT, sem tocar no servidor nem no banco oficial.
+  function syncActive() { return !isDemo() && storeLinked() && state.store.enabled !== false && !!authToken; }
   function touchTable(t) { if (t) t.updatedAt = Date.now(); }
   function touchItem(t, it) { var n = Date.now(); if (it) it.updatedAt = n; if (t) t.updatedAt = n; }
   function removeItem(t, it) {
@@ -1172,9 +1201,16 @@
       state.store.jwt = j.token;
       state.store.jwtExp = Date.now() + (Math.max(60, (j.expiresIn || 900)) * 1000);
       if (j.role && j.role !== state.store.role) { state.store.role = j.role; }
-      state.store.authFails = 0;
+      state.store.authFails = 0; authHardFails = 0;
       persist(false);
       return state.store.jwt;
+    }).catch(function (e) {
+      // 401 do painel = a CONTA caiu -> volta pro login. 403 = não é (mais) membro
+      // desta loja -> só desvincula a loja e vai pra seleção. Rede -> deixa o
+      // syncTick tratar (retry).
+      if (e && e.status === 401) authSessionLost();
+      else if (e && e.status === 403) storeConnectionLost("nao e membro");
+      throw e;
     }).finally(function () { storeJwtInFlight = null; });
     return storeJwtInFlight;
   }
@@ -1532,7 +1568,7 @@
     });
   }
   function syncManual() {
-    if (!storeLinked()) { toast("Conecte este aparelho a uma sala"); return; }
+    if (!storeLinked()) { toast("Conecte este aparelho a um estabelecimento"); return; }
     var now = Date.now();
     // Debounce: toques repetidos dentro da janela são ignorados em silêncio
     // (sem toast, sem re-kick) — fim do pisca-pisca no botão.
@@ -1546,7 +1582,7 @@
       return Promise.resolve(pending).catch(function () {}).finally(function () { syncManualSetBusy(false); });
     }
     state.store.enabled = true; persist(false);
-    if (navigator.onLine !== false && now >= syncRetryAt) toast("Sincronizando com a sala…");
+    if (navigator.onLine !== false && now >= syncRetryAt) toast("Sincronizando com o estabelecimento…");
     syncManualPromise = Promise.resolve(syncKick(true)).catch(function () { return false; }).finally(function () {
       syncManualPromise = null; syncManualSetBusy(false); syncPaintDot();
     });
@@ -1594,7 +1630,7 @@
     var b = document.getElementById("networkdetails");
     if (!b) return;
     var last = state.store.lastSuccessAt;
-    b.innerHTML = '<p>Estado: <b>' + networkLabel() + '</b></p><p>Última confirmação da sala: ' +
+    b.innerHTML = '<p>Estado: <b>' + networkLabel() + '</b></p><p>Última confirmação do estabelecimento: ' +
       (last ? esc(new Date(last).toLocaleString("pt-BR")) : "Nenhuma") + '</p>' +
       (state.store.offlineSince ? '<p>Offline desde ' + esc(new Date(state.store.offlineSince).toLocaleString("pt-BR")) + ' · ' + networkDuration(Date.now() - state.store.offlineSince) + '</p>' : '') +
       (state.store.lastError ? '<p>' + esc(state.store.lastError) + '</p>' : '') +
@@ -1623,7 +1659,7 @@
   }
   window.addEventListener("online", function () { syncKick(false, true); authResumeSession(); syncPaintDot(); paintReconnBar(); });
   window.addEventListener("offline", function () {
-    if (syncActive()) { syncCancelRequest(); networkOffline("offline", "Reconectando à sala…"); syncSchedule(SYNC_RETRY_MAX_MS); }
+    if (syncActive()) { syncCancelRequest(); networkOffline("offline", "Reconectando ao estabelecimento…"); syncSchedule(SYNC_RETRY_MAX_MS); }
     else syncPaintDot();
     paintReconnBar();
   });
@@ -1648,7 +1684,7 @@
       if (!ref || Date.now() - ref <= SYNC_PHANTOM_MS) return;
       networkEvent("phantom", "Sem resposta há " + networkDuration(Date.now() - ref) + " · reconectando");
       syncCancelRequest();
-      networkOffline("offline", "Reconectando à sala…");
+      networkOffline("offline", "Reconectando ao estabelecimento…");
       syncKick(false, true);
       paintReconnBar();
     } catch (err) {}
@@ -1688,7 +1724,7 @@
     var label = document.getElementById("networklabel"), button = document.getElementById("networkstatus");
     if (label) label.textContent = networkLabel();
     if (button) {
-      button.title = storeLinked() ? (state.store.lastError || "Conexão com a sala · toque para sincronizar ou ver o histórico") : "Estado da rede do aparelho · conecte uma sala para sincronizar";
+      button.title = storeLinked() ? (state.store.lastError || "Conexão com o estabelecimento · toque para sincronizar ou ver o histórico") : "Estado da rede do aparelho · conecte um estabelecimento para sincronizar";
       button.setAttribute("aria-label", "Conexão: " + networkLabel() + ". Abrir sincronização e histórico");
     }
     ["syncmanual", "syncmanualcfg"].forEach(function (id) {
@@ -1818,7 +1854,7 @@
     return null; // full -> usa as abas da função da equipe
   }
   // ================= estabelecimento e equipe =================
-  // Sem QR, sem código de sala, sem PIN: o vínculo é pela conta. O dono cria o
+  // Sem QR, sem código, sem PIN: o vínculo é pela conta. O dono cria o
   // estabelecimento; a equipe entra por convite (link/e-mail) com a própria conta.
   function storeLinkSheet() {
     if (!authReady || !authToken) { toast("Entre na sua conta para usar vários aparelhos"); renderAuthGate("choose"); return; }
@@ -1955,7 +1991,8 @@
     var now = Date.now();
     state = { setup: true, version: VERSION, biz: { name: "Bar do Cacau", type: "bar", logo: null }, linkedCashier: true,
       settings: { theme: "auto", haptics: true, sound: true, servicePct: 10 }, ui: { kitchenSeenAt: 0, demo: true },
-      sync: (state && state.store) || { room: null, pin: null, role: "full", enabled: false, server: "", cfgAt: 0, tomb: {}, status: "off" },
+      // Demo = ambiente local/mock: estabelecimento NÃO vinculado, sync desligado.
+      store: { id: null, name: "", role: "full", enabled: false, jwt: "", jwtExp: 0, cfgAt: 0, tomb: {}, _tombPending: {}, status: "off", events: [] },
       staff: [a, g, c], activeStaffId: a.id, cats: m.cats, menu: m.menu,
       tables: [
         { id: uid(), name: "Mesa 3", openedAt: now - 21 * 6e4, byId: g.id, status: "aberta", note: "Aniversário — levar vela", people: 4, items: [
@@ -2137,8 +2174,8 @@
     try { flow = state.setup ? "app" : "welcome"; renderAll(); } catch (e) {}
     toast("Feche pelo botão do aparelho");
   }
-  // Quem entrou numa sala como colaborador (garçom/caixa/cozinha) precisa de uma
-  // saída clara: largar a sala OU fechar o app. Sem isso o aparelho ficava preso.
+  // Quem entrou por convite como colaborador (garçom/caixa/cozinha) precisa de uma
+  // saída clara: sair da equipe OU fechar o app. Sem isso o aparelho ficava preso.
   function leaveSheet() {
     var paired = storeLinked(), collab = paired && state.store.role !== "full";
     openSheet("Sair", function (b) {
@@ -2148,7 +2185,7 @@
           : 'O que você quer fazer?') + '</p>';
     }, function (f) {
       if (paired) {
-        var d = document.createElement("button"); d.className = "btn block lg slab"; d.textContent = "Sair da sala (desconectar)";
+        var d = document.createElement("button"); d.className = "btn block lg slab"; d.textContent = "Sair da equipe (desconectar)";
         d.onclick = function () { closeSheet(true); syncLeaveRoom(); };
         f.appendChild(d);
       }
@@ -2164,7 +2201,7 @@
     var ownSetup = !!state.setupOwn && !state.ui.demo;
     storeUnlink(); current = "mesas"; openTableId = null;
     if (!ownSetup) flow = "welcome";
-    renderAll(); toast(ownSetup ? "Desconectado da sala" : "Saiu da sala; dados locais preservados");
+    renderAll(); toast(ownSetup ? "Desconectado do estabelecimento" : "Você saiu da equipe; dados locais preservados");
   }
   function tryExit() {
     if (scrim) { closeSheet(); return; }
@@ -2201,36 +2238,137 @@
   }, 30000);
 
   // ---------- onboarding ----------
-  function renderWelcome() {
-    var trial = authUser && authUser.access && authUser.access.status === "trial" && authUser.access.active && authUser.access.expiresAt;
-    var trialNotice = trial ? '<div class="trialbar" style="margin:14px 0 4px;border-radius:10px;text-transform:none;letter-spacing:0;font-size:13px">Teste grátis de 15 dias ativado<br><span style="font-weight:600">Válido até ' + new Date(authUser.access.expiresAt).toLocaleString("pt-BR") + '</span></div>' : '';
-    appEl.innerHTML =
-      '<div class="ob ob-red splash-screen">' +
-        '<div class="awning"></div>' +
-        '<div class="ob-pad">' +
-          '<div class="ob-top"></div>' +
-          '<div class="ob-mid">' +
-            '<div id="adminsecret" class="splash-mark" style="display:flex;align-items:center;gap:14px;margin-bottom:4px">' + mark(50) + '</div>' +
-            '<div id="adminsecretword" class="wordmark splash-mark"><span class="l1">Pede</span><span class="l2">A&Iacute;<span class="bang">!</span></span></div>' +
-          '<p class="ob-tag">A comanda do bar no celular. Anota, soma e fecha a conta. Sem papel, sem calculadora, sem internet.</p>' + trialNotice +
-          '</div>' +
-          '<div class="ob-actions">' +
-            '<button class="btn bone block xl slab" id="start">Bora começar</button>' +
-            '<button class="btn ghost block" id="demo" style="border-color:rgba(255,255,255,.4);color:#fff">Ver demonstração</button>' +
-            '<button class="btn ghost block" id="accountin" style="border-color:rgba(255,255,255,.4);color:#fff">Entrar na minha conta</button>' +
-            '<button class="btn ghost block plain" id="joink" style="color:#fff;opacity:.9;font-size:13px;min-height:40px">Conectar a um bar (garçom, caixa ou cozinha)</button>' +
-            '<div class="credit" style="margin-top:6px;color:#fff">Desenvolvido por ' + deckMark + '</div>' +
-          '</div>' +
-        '</div>' +
-      '</div>';
-    document.getElementById("start").onclick = startTutorial;
-    document.getElementById("demo").onclick = loadDemo;
-    document.getElementById("accountin").onclick = function () { renderAuthGate("choose"); };
+  // ---------- fluxo de entrada unificado (e-mail primeiro, estilo Google) ----------
+  var authFrame = function (bodyHtml, footHtml) {
+    return '<div class="ob ob-red splash-screen"><div class="awning"></div><div class="ob-pad">' +
+      '<div class="ob-top"></div><div class="ob-mid">' +
+      '<div id="adminsecret" class="splash-mark" style="display:flex;align-items:center;gap:14px;margin-bottom:4px">' + mark(50) + '</div>' +
+      '<div id="adminsecretword" class="wordmark splash-mark"><span class="l1">Pede</span><span class="l2">A&Iacute;<span class="bang">!</span></span></div>' +
+      bodyHtml + '</div><div class="ob-actions">' + (footHtml || "") +
+      '<div class="credit" style="margin-top:6px;color:#fff">Desenvolvido por ' + deckMark + '</div>' +
+      '</div></div></div>';
+  };
+  function authWireSecret() {
     var secretTaps = 0, secretTimer = null, longTimer = null, adminOpened = false;
-    function openAdminSecret() { if (adminOpened) return; adminOpened = true; secretTaps = 0; renderAdminLogin(); }
-    function wireAdminSecret(el) { if (!el) return; el.onclick = function () { secretTaps++; clearTimeout(secretTimer); secretTimer = setTimeout(function () { secretTaps = 0; }, 1800); if (secretTaps >= 3) openAdminSecret(); }; el.addEventListener("pointerdown", function () { clearTimeout(longTimer); longTimer = setTimeout(openAdminSecret, 1200); }); ["pointerup", "pointercancel", "pointerleave"].forEach(function (ev) { el.addEventListener(ev, function () { clearTimeout(longTimer); }); }); }
-    wireAdminSecret(document.getElementById("adminsecret")); wireAdminSecret(document.getElementById("adminsecretword"));
-    document.getElementById("joink").onclick = function () { storeLinkSheet(); };
+    function open() { if (adminOpened) return; adminOpened = true; renderAdminLogin(); }
+    function wire(el) {
+      if (!el) return;
+      el.onclick = function () { secretTaps++; clearTimeout(secretTimer); secretTimer = setTimeout(function () { secretTaps = 0; }, 1800); if (secretTaps >= 3) open(); };
+      el.addEventListener("pointerdown", function () { clearTimeout(longTimer); longTimer = setTimeout(open, 1200); });
+      ["pointerup", "pointercancel", "pointerleave"].forEach(function (ev) { el.addEventListener(ev, function () { clearTimeout(longTimer); }); });
+    }
+    wire(document.getElementById("adminsecret")); wire(document.getElementById("adminsecretword"));
+  }
+  var authFlowId = "";   // e-mail/telefone digitado no passo 1
+  function renderWelcome(error) {
+    appEl.innerHTML = authFrame(
+      '<p class="ob-tag">A comanda do bar no celular. Anota, soma e fecha a conta.</p>' +
+      '<label class="field" style="margin-top:16px"><span>Seu e-mail</span>' +
+      '<input id="authid" type="email" inputmode="email" autocomplete="username" autocapitalize="none" placeholder="voce@exemplo.com" value="' + esc(authFlowId) + '"></label>' +
+      (error ? '<div class="ob-tag" style="color:#ffb3c1;margin-top:10px">' + esc(error) + '</div>' : '') +
+      '<p class="ob-tag" style="font-size:12px;margin-top:8px;opacity:.85">Uma conta guarda seus dados e conecta a equipe. O app também funciona sem conta e offline.</p>',
+      '<button class="btn bone block xl slab" id="authnext">Avançar</button>' +
+      '<button class="btn ghost block" id="demo" style="border-color:rgba(255,255,255,.4);color:#fff">Ver demonstração</button>'
+    );
+    authWireSecret();
+    var inp = document.getElementById("authid");
+    setTimeout(function () { try { inp.focus(); } catch (e) {} }, 60);
+    inp.addEventListener("keydown", function (e) { if (e.key === "Enter") document.getElementById("authnext").click(); });
+    document.getElementById("authnext").onclick = authStep1;
+    document.getElementById("demo").onclick = loadDemo;
+  }
+  function authStep1() {
+    var id = (document.getElementById("authid") || {}).value || "";
+    id = id.trim().toLowerCase();
+    var isEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(id);
+    var digits = id.replace(/\D/g, "");
+    if (!isEmail && digits.length < 10) { renderWelcome("Informe um e-mail válido."); return; }
+    authFlowId = id;
+    var btn = document.getElementById("authnext"); if (btn) { btn.disabled = true; btn.textContent = "Verificando…"; }
+    authApi("/auth/check", "POST", { identifier: id }).then(function (j) {
+      renderAuthStep2(!!(j && j.exists), (j && j.name) || "");
+    }).catch(function (e) {
+      // Sem rede: deixa criar/entrar mesmo assim (o próximo passo confirma).
+      renderAuthStep2(true, "", e && e.status === 400 ? "Informe um e-mail válido." : "");
+    });
+  }
+  function renderAuthStep2(exists, name, warn) {
+    var back = '<button class="btn ghost block plain" id="authother" style="color:#fff;font-size:13px;min-height:40px">‹ usar outro e-mail</button>';
+    if (exists) {
+      appEl.innerHTML = authFrame(
+        '<h1 class="anton" style="font-size:26px;margin:10px 0 2px">' + (name ? "Olá, " + esc(name.split(" ")[0]) : "Bem-vindo de volta") + '</h1>' +
+        '<p class="ob-tag" style="font-size:13px">' + esc(authFlowId) + '</p>' +
+        '<label class="field" style="margin-top:14px"><span>Sua senha</span><input id="authpw" type="password" autocomplete="current-password" placeholder="••••••••"></label>' +
+        (warn ? '<div class="ob-tag" style="color:#ffb3c1;margin-top:10px">' + esc(warn) + '</div>' : '') +
+        '<button class="btn ghost block plain" id="authforgot" style="color:#fff;opacity:.9;font-size:12px;min-height:34px">Esqueci minha senha</button>',
+        '<button class="btn bone block xl slab" id="authgo">Entrar</button>' + back);
+      authWireSecret();
+      var pw = document.getElementById("authpw");
+      setTimeout(function () { try { pw.focus(); } catch (e) {} }, 60);
+      pw.addEventListener("keydown", function (e) { if (e.key === "Enter") document.getElementById("authgo").click(); });
+      document.getElementById("authgo").onclick = function () { authSubmit2(false); };
+      document.getElementById("authforgot").onclick = authForgotFlow;
+    } else {
+      appEl.innerHTML = authFrame(
+        '<h1 class="anton" style="font-size:24px;margin:10px 0 2px">Vamos criar sua conta</h1>' +
+        '<p class="ob-tag" style="font-size:13px">' + esc(authFlowId) + ' — conta nova</p>' +
+        '<label class="field" style="margin-top:12px"><span>Seu nome</span><input id="authname" autocomplete="name" placeholder="Como te chamam?"></label>' +
+        '<label class="field"><span>Telefone com DDD</span><input id="authphone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(00) 00000-0000"></label>' +
+        '<label class="field"><span>Crie uma senha (mín. 8)</span><input id="authpw" type="password" autocomplete="new-password" placeholder="••••••••"></label>' +
+        (warn ? '<div class="ob-tag" style="color:#ffb3c1;margin-top:10px">' + esc(warn) + '</div>' : '') +
+        '<div id="authpwhint" style="font-size:12px;margin-top:6px;color:#f7d4cc">Use pelo menos 8 caracteres.</div>',
+        '<button class="btn bone block xl slab" id="authgo">Criar conta</button>' + back);
+      authWireSecret();
+      var pw2 = document.getElementById("authpw"), hint = document.getElementById("authpwhint");
+      pw2.addEventListener("input", function () { var n = pw2.value.length; hint.textContent = n < 8 ? "Faltam " + (8 - n) + " caracteres." : "Senha ok."; hint.style.color = n < 8 ? "#f7d4cc" : "#b9f5c8"; });
+      setTimeout(function () { try { document.getElementById("authname").focus(); } catch (e) {} }, 60);
+      document.getElementById("authgo").onclick = function () { authSubmit2(true); };
+    }
+    document.getElementById("authother").onclick = function () { renderWelcome(); };
+  }
+  function authSubmit2(isNew) {
+    var pw = (document.getElementById("authpw") || {}).value || "";
+    var go = document.getElementById("authgo");
+    if (isNew) {
+      var nm = (document.getElementById("authname") || {}).value.trim();
+      var ph = (document.getElementById("authphone") || {}).value.trim();
+      if (!nm) return renderAuthStep2(false, "", "Informe seu nome.");
+      if (ph.replace(/\D/g, "").length < 10) return renderAuthStep2(false, "", "Informe um telefone com DDD.");
+      if (pw.length < 8) return renderAuthStep2(false, "", "A senha precisa ter 8+ caracteres.");
+      if (go) { go.disabled = true; go.textContent = "Criando…"; }
+      authApi("/auth/register", "POST", { name: nm, phone: ph, email: authFlowId, password: pw }).then(function (j) {
+        authToken = j.token; authUser = j.user; return authStoreToken(authToken);
+      }).then(function () { renderAuthCode(); }).catch(function (e) {
+        var m = (e && e.message) || "não foi possível criar a conta";
+        if (e && e.status === 409) { renderAuthStep2(true, "", "Este e-mail já tem conta — entre com a senha."); }
+        else renderAuthStep2(false, "", m);
+      });
+    } else {
+      if (!pw) return renderAuthStep2(true, "", "Digite sua senha.");
+      if (go) { go.disabled = true; go.textContent = "Entrando…"; }
+      authApi("/auth/login", "POST", { identifier: authFlowId, password: pw }).then(function (j) {
+        authToken = j.token; authUser = j.user; return authStoreToken(authToken);
+      }).then(function () { renderAuthCode(); }).catch(function (e) {
+        renderAuthStep2(true, "", (e && e.message) || "e-mail ou senha incorretos");
+      });
+    }
+  }
+  function renderAuthCode(error) {
+    appEl.innerHTML = authFrame(
+      '<h1 class="anton" style="font-size:24px;margin:10px 0 2px">Confirme que é você</h1>' +
+      '<p class="ob-tag" style="font-size:13px">Enviamos um código para ' + esc((authUser && authUser.email) || authFlowId) + '</p>' +
+      '<label class="field" style="margin-top:14px"><span>Código de 6 dígitos</span><input id="authcode" inputmode="numeric" maxlength="6" placeholder="000000"></label>' +
+      (error ? '<div class="ob-tag" style="color:#ffb3c1;margin-top:10px">' + esc(error) + '</div>' : ''),
+      '<button class="btn bone block xl slab" id="authverify">Verificar e continuar</button>' +
+      '<button class="btn ghost block" id="authresend" style="border-color:rgba(255,255,255,.4);color:#fff">Reenviar código</button>' +
+      '<button class="btn ghost block plain" id="authother" style="color:#fff;font-size:13px;min-height:40px">‹ usar outro e-mail</button>');
+    authWireSecret();
+    var c = document.getElementById("authcode");
+    setTimeout(function () { try { c.focus(); } catch (e) {} }, 60);
+    c.addEventListener("keydown", function (e) { if (e.key === "Enter") document.getElementById("authverify").click(); });
+    document.getElementById("authverify").onclick = authVerifyCode;
+    document.getElementById("authresend").onclick = authSendCode;
+    document.getElementById("authother").onclick = function () { authToken = ""; authUser = null; renderWelcome(); };
   }
 
   // ---------- guided hands-on tutorial ----------
@@ -3179,21 +3317,52 @@
     var e = document.createElement("button"); e.className = "cfg-row act"; e.textContent = "Editar dados"; e.onclick = editBiz; s1.appendChild(e);
     v.appendChild(s1);
 
-    var s2 = document.createElement("div"); s2.className = "cfg-sec"; s2.innerHTML = '<h4>Colaboradores e permissões</h4><p class="muted">Cadastre os atendentes e defina suas funções. Para usar outro celular, convide o aparelho para a sala abaixo.</p>';
+    // ---- Loja e equipe (unificado: estabelecimento + convites + atendentes locais) ----
+    var s2 = document.createElement("div"); s2.className = "cfg-sec"; s2.innerHTML = '<h4>Loja e equipe</h4>';
+    if (!authReady || !authToken) {
+      s2.insertAdjacentHTML("beforeend", '<div class="cfg-row"><span class="sub" style="font-size:12px">Entre na sua conta para gerenciar a loja e a equipe (convites por e-mail). O app funciona offline sem conta.</span></div>');
+      var la = document.createElement("button"); la.className = "cfg-row act"; la.innerHTML = ic("user", 17) + " Entrar na conta";
+      la.onclick = function () { flow = "welcome"; renderWelcome(); }; s2.appendChild(la);
+    } else if (!storeLinked()) {
+      s2.insertAdjacentHTML("beforeend", '<div class="cfg-row"><span class="sub" style="font-size:12px">Crie sua loja (você fica como responsável) ou entre com um convite. Cada pessoa usa a própria conta.</span></div>');
+      var cr1 = document.createElement("button"); cr1.className = "cfg-row act"; cr1.innerHTML = ic("plus", 17) + " Criar loja";
+      cr1.onclick = storeCreateSheet; s2.appendChild(cr1);
+      var cr2 = document.createElement("button"); cr2.className = "cfg-row act"; cr2.innerHTML = ic("people", 17) + " Entrar com um convite";
+      cr2.onclick = function () { inviteSheet(); }; s2.appendChild(cr2);
+      var cr3 = document.createElement("button"); cr3.className = "cfg-row"; cr3.innerHTML = 'Minhas lojas<span class="right muted">›</span>';
+      cr3.onclick = storeLinkSheet; s2.appendChild(cr3);
+    } else {
+      var stt = { connecting: "conectando…", online: "sincronizado", offline: "sem internet", badpin: "sessão recusada", noroom: "loja indisponível", off: "pausado" }[(state.store.status || "off")] || "";
+      s2.insertAdjacentHTML("beforeend",
+        '<div class="cfg-row">Loja<span class="right muted">' + esc(state.store.name || "—") + '</span></div>' +
+        '<div class="cfg-row">Seu papel<span class="right muted">' + esc(syncRoleLabel(state.store.role)) + '</span></div>' +
+        '<div class="cfg-row">Situação<span class="right muted" id="networkcfgstatus">' + stt + '</span></div>' +
+        (state.store.status === "online" ? '<div class="cfg-row">Conectados agora<span class="right muted">' + ((state.store.peers || syncPeers).length || 1) + ' aparelho(s)</span></div>' : ''));
+      if (storeRole() === "full") {
+        var sc1 = document.createElement("button"); sc1.className = "cfg-row act"; sc1.innerHTML = ic("people", 17) + " Equipe e convites";
+        sc1.onclick = storeTeamSheet; s2.appendChild(sc1);
+      }
+      var sc5 = document.createElement("button"); sc5.className = "cfg-row"; sc5.innerHTML = 'Trocar de loja<span class="right muted">›</span>';
+      sc5.onclick = storeLinkSheet; s2.appendChild(sc5);
+      var sc4 = document.createElement("button"); sc4.className = "cfg-row danger"; sc4.style.color = "#f0897b"; sc4.textContent = "Desconectar este aparelho";
+      sc4.onclick = syncDisconnect; s2.appendChild(sc4);
+      var manual = document.createElement("button"); manual.id = "syncmanualcfg"; manual.className = "btn bone block";
+      manual.textContent = "Sincronizar agora"; manual.onclick = syncManual;
+      manual.disabled = (syncBusy && !syncBackgrounded) || Date.now() < syncManualLockUntil;
+      s2.appendChild(manual);
+    }
+    var reconnect = document.createElement("button"); reconnect.className = "btn ghost block";
+    reconnect.textContent = "Histórico de conexão"; reconnect.onclick = networkSheet;
+    s2.appendChild(reconnect);
+    // Atendentes deste aparelho (atribuição local na comanda — não são contas).
+    s2.insertAdjacentHTML("beforeend", '<div class="cfg-row" style="margin-top:8px"><span class="sub" style="font-size:12px">Quem atende por este aparelho (só pra marcar nas comandas):</span></div>');
     state.staff.forEach(function (st) {
       var r = document.createElement("button"); r.className = "cfg-row";
-      r.innerHTML = '<span class="cfg-av">' + esc(initials(st.name)) + '</span><span>' + esc(st.name) + '<br><span class="sub">' + (ROLE_LABEL[st.role] || "") + (st.pin ? " · PIN" : "") + '</span></span>';
+      r.innerHTML = '<span class="cfg-av">' + esc(initials(st.name)) + '</span><span>' + esc(st.name) + '<br><span class="sub">' + (ROLE_LABEL[st.role] || "") + '</span></span>';
       r.onclick = function () { editStaff(st); }; s2.appendChild(r);
     });
-    var addS = document.createElement("button"); addS.className = "cfg-row collab-add"; addS.innerHTML = ic("plus", 17) + " Adicionar colaborador"; addS.onclick = function () { editStaff(null); }; s2.appendChild(addS);
-    var invite = document.createElement("button"); invite.className = "btn red block";
-    invite.textContent = "Convidar pessoa da equipe";
-    invite.onclick = function () {
-      if (storeRole() === "full") storeInviteSheet();
-      else if (!storeLinked()) storeCreateSheet();
-      else toast("Só o responsável convida a equipe");
-    };
-    s2.appendChild(invite);
+    var addS = document.createElement("button"); addS.className = "cfg-row collab-add"; addS.innerHTML = ic("plus", 17) + " Adicionar atendente";
+    addS.onclick = function () { editStaff(null); }; s2.appendChild(addS);
     v.appendChild(s2);
 
     var s3 = document.createElement("div"); s3.className = "cfg-sec"; s3.innerHTML = '<h4>Caixa</h4>';
@@ -3271,7 +3440,7 @@
     });
 
     var s6 = document.createElement("div"); s6.className = "cfg-sec"; s6.innerHTML = '<h4>Dados e backup</h4>' +
-      '<div class="cfg-row"><span class="sub" style="font-size:12px">Os dados ficam neste aparelho. Faça backup pra não perder se o celular sumir — no arquivo ou na nuvem (leve, com código + PIN).</span></div>';
+      '<div class="cfg-row"><span class="sub" style="font-size:12px">Os dados ficam neste aparelho. Faça backup pra não perder se o celular sumir — no arquivo ou na sua conta.</span></div>';
     var ex = document.createElement("button"); ex.className = "cfg-row act"; ex.innerHTML = ic("box", 17) + " Exportar backup (arquivo)"; ex.onclick = exportBackup; s6.appendChild(ex);
     var im = document.createElement("button"); im.className = "cfg-row act"; im.innerHTML = ic("undo", 17) + " Importar backup (arquivo)"; im.onclick = importBackup; s6.appendChild(im);
     var cpu = document.createElement("button"); cpu.className = "cfg-row act";
@@ -3284,43 +3453,6 @@
     }
     v.appendChild(s6);
 
-    var ssec = document.createElement("div"); ssec.className = "cfg-sec"; ssec.innerHTML = '<h4>Estabelecimento e equipe</h4>';
-    if (!authReady || !authToken) {
-      ssec.insertAdjacentHTML("beforeend", '<div class="cfg-row"><span class="sub" style="font-size:12px">Entre na sua conta para conectar vários aparelhos no mesmo estabelecimento. O app continua funcionando offline sem conta.</span></div>');
-      var la = document.createElement("button"); la.className = "cfg-row act"; la.innerHTML = ic("user", 17) + " Entrar na conta";
-      la.onclick = function () { renderAuthGate("choose"); }; ssec.appendChild(la);
-    } else if (!storeLinked()) {
-      ssec.insertAdjacentHTML("beforeend", '<div class="cfg-row"><span class="sub" style="font-size:12px">Crie o estabelecimento (você fica como responsável) ou entre com um convite. Cada pessoa usa a própria conta — sem código de sala, sem PIN.</span></div>');
-      var cr1 = document.createElement("button"); cr1.className = "cfg-row act"; cr1.innerHTML = ic("plus", 17) + " Criar estabelecimento";
-      cr1.onclick = storeCreateSheet; ssec.appendChild(cr1);
-      var cr2 = document.createElement("button"); cr2.className = "cfg-row act"; cr2.innerHTML = ic("people", 17) + " Entrar com um convite";
-      cr2.onclick = function () { inviteSheet(); }; ssec.appendChild(cr2);
-      var cr3 = document.createElement("button"); cr3.className = "cfg-row"; cr3.innerHTML = 'Meus estabelecimentos<span class="right muted">›</span>';
-      cr3.onclick = storeLinkSheet; ssec.appendChild(cr3);
-    } else {
-      var stt = { connecting: "conectando…", online: "sincronizado", offline: "sem internet", badpin: "sessão recusada", noroom: "estabelecimento indisponível", off: "pausado" }[(state.store.status || "off")] || "";
-      ssec.insertAdjacentHTML("beforeend",
-        '<div class="cfg-row">Estabelecimento<span class="right muted">' + esc(state.store.name || "—") + '</span></div>' +
-        '<div class="cfg-row">Seu papel<span class="right muted">' + esc(syncRoleLabel(state.store.role)) + '</span></div>' +
-        '<div class="cfg-row">Situação<span class="right muted" id="networkcfgstatus">' + stt + '</span></div>' +
-        (state.store.status === "online" ? '<div class="cfg-row">Conectados agora<span class="right muted">' + ((state.store.peers || syncPeers).length || 1) + ' aparelho(s)</span></div>' : ''));
-      if (storeRole() === "full") {
-        var sc1 = document.createElement("button"); sc1.className = "cfg-row act"; sc1.innerHTML = ic("people", 17) + " Equipe e convites";
-        sc1.onclick = storeTeamSheet; ssec.appendChild(sc1);
-      }
-      var sc5 = document.createElement("button"); sc5.className = "cfg-row"; sc5.innerHTML = 'Trocar de estabelecimento<span class="right muted">›</span>';
-      sc5.onclick = storeLinkSheet; ssec.appendChild(sc5);
-      var sc4 = document.createElement("button"); sc4.className = "cfg-row danger"; sc4.style.color = "#f0897b"; sc4.textContent = "Desconectar este aparelho";
-      sc4.onclick = syncDisconnect; ssec.appendChild(sc4);
-      var manual = document.createElement("button"); manual.id = "syncmanualcfg"; manual.className = "btn bone block";
-      manual.textContent = "Sincronizar agora"; manual.onclick = syncManual;
-      manual.disabled = (syncBusy && !syncBackgrounded) || Date.now() < syncManualLockUntil;
-      ssec.appendChild(manual);
-    }
-    var reconnect = document.createElement("button"); reconnect.className = "btn ghost block";
-    reconnect.textContent = "Histórico de conexão"; reconnect.onclick = networkSheet;
-    ssec.appendChild(reconnect);
-    v.appendChild(ssec);
 
     var ls = licState();
     var licTxt = ls === "unlocked" ? "Liberado (licença ativa)" : ls === "trial" ? "Teste grátis até " + (authUser && authUser.access && authUser.access.expiresAt ? new Date(authUser.access.expiresAt).toLocaleString("pt-BR") : licDaysLeft() + (licDaysLeft() > 1 ? " dias restantes" : " dia restante")) : ls === "expired" ? "Teste encerrado" : "Licença de outro aparelho";
@@ -3728,7 +3860,7 @@
     try { last = parseInt(localStorage.getItem(BEATKEY), 10) || 0; } catch (e) {}
     if (!force && Date.now() - last < UPD_THROTTLE) return;
     try { localStorage.setItem(BEATKEY, String(Date.now())); } catch (e) {}
-    var body = { id: updInstallId(), v: VERSION, role: (storeLinked() ? state.store.role : "solo") };
+    var body = { id: updInstallId(), v: VERSION, role: (isDemo() ? "demo" : storeLinked() ? state.store.role : "solo") };
     try {
       fetch(syncBase() + "/beat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
         .then(function (r) { return r.ok ? r.json() : null; })

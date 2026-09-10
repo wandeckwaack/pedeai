@@ -527,8 +527,8 @@
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.14.8";
-  var VERSION_CODE = 74;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
+  var KEY = "pedeai.v2", VERSION = "4.14.9";
+  var VERSION_CODE = 75;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- logger de erros (silencioso -> backend -> erros_pedeai.log) ----------
@@ -879,7 +879,7 @@
   async function authVerifyCode() { var v = (document.getElementById("authcode") || {}).value || ""; try { await authApi("/auth/verify-code", "POST", { code: v }); authAfterLogin(); } catch (e) { renderAuthCode((e && e.message) || "código inválido"); } }
   async function authRedeemAccess() {
     var el = document.getElementById("accesscode"), code = el ? el.value : "";
-    try { var j = await authApi("/auth/redeem-access", "POST", { code: code }); authUser = j.user; licInit().then(function () { renderAll(); toast("Acesso liberado"); }); }
+    try { var j = await authApi("/auth/redeem-access", "POST", { code: code }); authUser = j.user; await authAfterLogin(); toast("Acesso de proprietário liberado"); }
     catch (e) { var msg = document.getElementById("accesserr"); if (msg) msg.textContent = e.message || "código inválido"; }
   }
   async function authLogout() {
@@ -2391,8 +2391,8 @@
     appEl.innerHTML = authFrame(
       '<h1 class="anton" style="font-size:27px;margin:10px 0 6px">Como você vai entrar?</h1>' +
       '<p class="ob-tag" style="font-size:13px;margin-bottom:16px">Escolha o acesso correto para proteger a loja e a equipe.</p>' +
-      '<button class="btn bone block xl slab" id="authowner" style="text-align:left">👑 Proprietário / lojista<div style="font:600 12px Figtree;margin-top:4px;opacity:.75">Cria e administra o estabelecimento</div></button>' +
-      '<button class="btn ghost block xl slab" id="authstaff" style="text-align:left;color:#fff;border-color:rgba(255,255,255,.45)">👥 Atendente<div style="font:600 12px Figtree;margin-top:4px;opacity:.75">Entra somente com convite do proprietário</div></button>',
+      '<button class="btn bone block xl slab" id="authowner" style="text-align:left">Proprietário / lojista<div style="font:600 12px Figtree;margin-top:4px;opacity:.75">Cria e administra o estabelecimento</div></button>' +
+      '<button class="btn ghost block xl slab" id="authstaff" style="text-align:left;color:#fff;border-color:rgba(255,255,255,.45)">Atendente<div style="font:600 12px Figtree;margin-top:4px;opacity:.75">Entra somente com convite do proprietário</div></button>',
       '<button class="btn ghost block" id="demo" style="border-color:rgba(255,255,255,.4);color:#fff">Ver demonstração</button>'
     );
     authWireSecret();
@@ -2426,11 +2426,14 @@
   function renderAccessPending() {
     appEl.innerHTML = authFrame(
       '<h1 class="anton" style="font-size:25px;margin:10px 0 5px">Acesso ainda não liberado</h1>' +
-      '<p class="ob-tag" style="font-size:13px">Esta conta não é proprietária nem está vinculada a uma equipe.</p>' +
-      '<p class="ob-tag" style="font-size:13px;margin-top:10px">Para entrar como atendente, use um convite do proprietário. Para criar uma loja, solicite a ativação de proprietário ao administrador.</p>',
+      '<p class="ob-tag" style="font-size:13px">Use um convite para entrar como atendente ou um código simples para ativar o proprietário.</p>' +
+      '<label class="field" style="margin-top:16px"><span>Código de ativação (opcional)</span><input id="accesscode" inputmode="numeric" maxlength="8" autocomplete="one-time-code" placeholder="00000000"></label>' +
+      '<div id="accesserr" class="ob-tag" style="color:#ffb3c1;min-height:18px"></div>',
+      '<button class="btn bone block xl slab" id="accessgo">Ativar como proprietário</button>' +
       '<button class="btn ghost block" id="pendinglogout" style="color:#fff;border-color:rgba(255,255,255,.4)">Sair da conta</button>'
     );
     authWireSecret();
+    document.getElementById("accessgo").onclick = authRedeemAccess;
     document.getElementById("pendinglogout").onclick = authLogout;
   }
   function authStep1() {

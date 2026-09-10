@@ -527,8 +527,8 @@
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.14.9";
-  var VERSION_CODE = 75;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
+  var KEY = "pedeai.v2", VERSION = "4.15.0";
+  var VERSION_CODE = 76;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- logger de erros (silencioso -> backend -> erros_pedeai.log) ----------
@@ -1238,6 +1238,20 @@
     state.store._tombPending = state.store._tombPending || {}; state.store._tombPending[id] = now;
   }
   // ---- vínculo do aparelho com um estabelecimento (via conta) ----
+  // Um erro do SERVIDOR (400/403/409…) tem mensagem própria e precisa aparecer
+  // pro usuário: dizer "sem conexão" nesses casos esconde o motivo real e deixa
+  // a pessoa tentando de novo pra sempre. Só falha de rede/timeout (sem .status)
+  // é problema de conexão.
+  function apiMsg(e, fallback) {
+    if (e && e.status) {
+      if (e.status === 401) return "Sua sessão expirou; entre na conta de novo";
+      if (e.status === 429) return "Muitas tentativas; espere um instante";
+      if (e.status >= 500) return "O servidor falhou agora; tente de novo em instantes";
+      return (e.message && !/^Falha na conex/.test(e.message)) ? e.message : (fallback || "Não foi possível concluir");
+    }
+    if (e && /interrompida/i.test(e.message || "")) return "Demorou demais para responder; tente de novo";
+    return "Sem conexão; tente de novo";
+  }
   function storeApi(path, method, body) {
     return networkRequest(AUTH_API + path, {
       method: method || "GET", headers: authHeaders(),
@@ -1951,8 +1965,9 @@
           };
         });
         b.querySelector("#stinvite").onclick = function () { closeSheet(); inviteSheet(); };
-      }).catch(function () {
-        b.innerHTML = '<p class="muted" style="font-size:13px">Sem conexão agora. Seus dados locais continuam salvos; tente de novo quando a internet voltar.</p>';
+      }).catch(function (e) {
+        b.innerHTML = '<p class="muted" style="font-size:13px">' + esc(apiMsg(e, "Não foi possível carregar seus estabelecimentos")) +
+          '. Seus dados locais continuam salvos.</p>';
       });
     });
   }
@@ -1970,7 +1985,7 @@
         storeCreate(name).then(function (j) {
           if (j && j.store) { state.setup = true; persist(); closeSheet(); haptic(10); flow = "app"; renderAll(); toast("Estabelecimento criado"); }
           else { ok.disabled = false; toast((j && j.error) || "Não foi possível criar agora"); }
-        }).catch(function () { ok.disabled = false; toast("Sem conexão; tente de novo"); });
+        }).catch(function (e) { ok.disabled = false; toast(apiMsg(e, "Não foi possível criar agora")); });
       };
       f.appendChild(ok);
     });
@@ -2021,7 +2036,25 @@
         inviteAccept(token).then(function (j) {
           if (j && j.store) { state.setup = true; persist(); closeSheet(); haptic(10); flow = "app"; renderAll(); toast("Você entrou em " + j.store.name); }
           else { ok.disabled = false; toast((j && j.error) || "Convite inválido ou já usado"); }
-        }).catch(function (e) { ok.disabled = false; toast((e && e.message) || "Não foi possível aceitar agora"); });
+        }).catch(function (e) {
+          ok.disabled = false;
+          toast(apiMsg(e, "Não foi possível aceitar agora"));
+          if (e && e.status === 409 && storeLinked() && storeRole() === "full") {
+            var host = scrim.querySelector("#invtok");
+            if (host && host.parentNode && host.parentNode.parentNode && !scrim.querySelector("#invclose")) {
+              var hint = document.createElement("div");
+              hint.className = "muted"; hint.style.cssText = "font-size:12px;margin-top:10px";
+              hint.innerHTML = 'Sua conta é dona de <b>' + esc(state.store.name || "um estabelecimento") + '</b>. ' +
+                'Para entrar como atendente, encerre a sua loja primeiro.';
+              var bt = document.createElement("button");
+              bt.id = "invclose"; bt.className = "btn ghost block"; bt.style.marginTop = "8px";
+              bt.textContent = "Encerrar minha loja";
+              bt.onclick = function () { closeSheet(); storeCloseSheet(); };
+              hint.appendChild(bt);
+              host.parentNode.parentNode.appendChild(hint);
+            }
+          }
+        });
       };
       f.appendChild(ok);
     });
@@ -2039,10 +2072,18 @@
       });
     }, function (f) {
       var ok = document.createElement("button"); ok.className = "btn red block lg slab"; ok.textContent = "Enviar convite";
+      function inviteFail(msg) {
+        ok.disabled = false;
+        var out = scrim.querySelector("#invout");
+        if (out) out.innerHTML = '<b style="color:#f0897b">Não deu para convidar.</b><br>' + esc(msg);
+        toast(msg);
+      }
       ok.onclick = function () {
         var email = (scrim.querySelector("#invemail").value || "").trim().toLowerCase();
-        if (email.indexOf("@") < 1) { toast("Informe o e-mail"); return; }
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { inviteFail("Informe um e-mail válido (ex.: pessoa@exemplo.com)"); return; }
+        if (!storeLinked()) { inviteFail("Conecte-se a um estabelecimento antes de convidar"); return; }
         ok.disabled = true;
+        var out0 = scrim.querySelector("#invout"); if (out0) out0.textContent = "Enviando convite…";
         storeApi("/stores/" + state.store.id + "/invites", "POST", { email: email, role: role }).then(function (j) {
           ok.disabled = false;
           if (j && j.link) {
@@ -2052,8 +2093,20 @@
             if (state.store) { state.store.events = (state.store.events || []).concat([{ at: Date.now(), status: "invite-sent", detail: "Convite enviado para " + email }]).slice(-20); persist(false); }
             toast("Convite enviado · código " + code);
             try { navigator.clipboard.writeText(j.link); toast("Link copiado"); } catch (e) {}
-          } else { toast((j && j.error) || "Não foi possível convidar"); }
-        }).catch(function () { ok.disabled = false; toast("Sem conexão; tente de novo"); });
+          } else { inviteFail((j && j.error) || "Não foi possível convidar"); }
+        }).catch(function (e) {
+          var msg = apiMsg(e, "Não foi possível convidar");
+          inviteFail(msg);
+          // Beco sem saída conhecido: o e-mail convidado já é dono de outra loja.
+          // Em vez de só reclamar, explica o caminho de saída.
+          if (e && e.status === 409) {
+            var out = scrim.querySelector("#invout");
+            if (out) out.insertAdjacentHTML("beforeend",
+              '<br><br><span class="muted">Como resolver: peça para essa pessoa abrir o PedeAí dela em ' +
+              '<b>Ajustes › Minha loja › Encerrar meu estabelecimento</b> (os dados dela continuam salvos no aparelho) ' +
+              'e depois envie o convite de novo. Ou convide um e-mail que ainda não tenha loja própria.</span>');
+          }
+        });
       };
       f.appendChild(ok);
     });
@@ -2074,13 +2127,49 @@
             inv.map(function (i) { return '<div class="cfg-row"><span>' + esc(i.email) + '</span><span class="right muted">' + syncRoleLabel(i.role) + '</span></div>'; }).join("") : "") +
           '<button class="cfg-row act" id="tminvite" style="margin-top:10px">' + ic("plus", 17) + ' Adicionar atendente por e-mail</button>';
         b.querySelectorAll("select.tmr").forEach(function (sel) {
-          sel.onchange = function () { storeApi("/stores/" + state.store.id + "/collaborators/" + sel.dataset.uid + "/role", "POST", { role: sel.value }).then(function () { toast("Papel atualizado"); }).catch(function () { toast("Falhou"); }); };
+          var prev = sel.value;
+          sel.onchange = function () { storeApi("/stores/" + state.store.id + "/collaborators/" + sel.dataset.uid + "/role", "POST", { role: sel.value }).then(function () { prev = sel.value; toast("Papel atualizado"); }).catch(function (e) { sel.value = prev; toast(apiMsg(e, "Não foi possível trocar o papel")); }); };
         });
         b.querySelectorAll("[data-rm]").forEach(function (bt) {
-          bt.onclick = function () { storeApi("/stores/" + state.store.id + "/collaborators/" + bt.dataset.rm + "/remove", "POST", {}).then(function () { closeSheet(); storeTeamSheet(); }); };
+          bt.onclick = function () { bt.disabled = true; storeApi("/stores/" + state.store.id + "/collaborators/" + bt.dataset.rm + "/remove", "POST", {}).then(function () { closeSheet(); storeTeamSheet(); }).catch(function (e) { bt.disabled = false; toast(apiMsg(e, "Não foi possível remover")); }); };
         });
         b.querySelector("#tminvite").onclick = function () { closeSheet(); storeInviteSheet(); };
-      }).catch(function () { b.innerHTML = '<p class="muted" style="font-size:13px">Sem conexão agora.</p>'; });
+      }).catch(function (e) { b.innerHTML = '<p class="muted" style="font-size:13px">' + esc(apiMsg(e, "Não foi possível carregar a equipe")) + '</p>'; });
+    });
+  }
+  // ---- encerrar o próprio estabelecimento ----
+  // Saída legítima pra quem criou uma loja de teste: sem isso a conta fica
+  // marcada como proprietária pra sempre e NUNCA pode receber um convite.
+  function storeCloseSheet() {
+    if (storeRole() !== "full") { toast("Só o responsável encerra o estabelecimento"); return; }
+    var name = (state.store && state.store.name) || "este estabelecimento";
+    confirmDialog('Encerrar "' + name + '"? A loja sai do ar para a equipe e este aparelho para de sincronizar. ' +
+      'As vendas, o cardápio e o histórico já salvos NESTE celular continuam aqui. ' +
+      'Faça isso se a loja foi um teste ou se você vai entrar na equipe de outra pessoa.', "Encerrar", function () {
+      var id = state.store.id;
+      function go(confirm) {
+        toast("Encerrando…");
+        return storeApi("/stores/" + id + "/close", "POST", confirm ? { confirm: true } : {}).then(function (j) {
+          if (j && j.user) authUser = j.user;
+          storeUnlink();
+          state.setupOwn = false;
+          persist();
+          toast("Estabelecimento encerrado. Agora você pode aceitar um convite.");
+          // A conta deixou de ser proprietária: leva direto pra tela onde dá
+          // pra colar o convite, em vez de deixar a pessoa num app sem loja.
+          if (authUser && authUser.accountType !== "owner") { flow = "welcome"; renderAccessPending(); }
+          else renderAll();
+        });
+      }
+      go(false).catch(function (e) {
+        if (e && e.status === 409) {
+          confirmDialog(apiMsg(e, "Ainda há gente na equipe") + " Encerrar assim mesmo?", "Encerrar", function () {
+            go(true).catch(function (e2) { toast(apiMsg(e2, "Não foi possível encerrar")); });
+          });
+          return;
+        }
+        toast(apiMsg(e, "Não foi possível encerrar"));
+      });
     });
   }
   function syncDisconnect() {
@@ -3618,6 +3707,11 @@
       sc5.onclick = storeLinkSheet; s2.appendChild(sc5);
       var sc4 = document.createElement("button"); sc4.className = "cfg-row danger"; sc4.style.color = "#f0897b"; sc4.textContent = "Desconectar este aparelho";
       sc4.onclick = syncDisconnect; s2.appendChild(sc4);
+      if (storeRole() === "full") {
+        var sc6 = document.createElement("button"); sc6.className = "cfg-row danger"; sc6.style.color = "#f0897b";
+        sc6.innerHTML = 'Encerrar meu estabelecimento<span class="right muted" style="font-size:11px">libera a conta para convites</span>';
+        sc6.onclick = storeCloseSheet; s2.appendChild(sc6);
+      }
       var manual = document.createElement("button"); manual.id = "syncmanualcfg"; manual.className = "btn bone block";
       manual.textContent = "Sincronizar agora"; manual.onclick = syncManual;
       manual.disabled = (syncBusy && !syncBackgrounded) || Date.now() < syncManualLockUntil;

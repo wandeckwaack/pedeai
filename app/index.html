@@ -527,8 +527,8 @@
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.15.0";
-  var VERSION_CODE = 76;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
+  var KEY = "pedeai.v2", VERSION = "4.16.0";
+  var VERSION_CODE = 77;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- logger de erros (silencioso -> backend -> erros_pedeai.log) ----------
@@ -1484,7 +1484,7 @@
           var error = new Error("Falha na conexão (" + r.status + ")"); error.status = r.status;
           var retry = r.headers && r.headers.get("Retry-After");
           error.retryAfter = retry ? Math.max(0, /^\d+(\.\d+)?$/.test(retry) ? Number(retry) * 1000 : Date.parse(retry) - Date.now()) : 0;
-          return r.json().catch(function () { return {}; }).then(function (body) { if (body.error) error.message = body.error; throw error; });
+          return r.json().catch(function () { return {}; }).then(function (body) { error.data = body; error.code = body.code || ""; if (body.error) error.message = body.error; throw error; });
         }
         return r.status === 204 ? {} : r.json();
       }).then(function (body) {
@@ -2508,6 +2508,9 @@
   var authFlowId = "";   // e-mail/telefone digitado no passo 1
   var authMode = "";     // entrada escolhida: owner ou staff
   function renderAccessChoice() {
+    // Quem chegou por link de convite não precisa responder "quem é você":
+    // o convite já diz. Vai direto para a tela de entrada da equipe.
+    if (_pendingInvite) { authMode = "staff"; return renderInviteJoin(_pendingInvite); }
     appEl.innerHTML = authFrame(
       '<h1 class="anton" style="font-size:27px;margin:10px 0 6px">Como você vai entrar?</h1>' +
       '<p class="ob-tag" style="font-size:13px;margin-bottom:16px">Escolha o acesso correto para proteger a loja e a equipe.</p>' +
@@ -2520,13 +2523,111 @@
     document.getElementById("authstaff").onclick = function () { authMode = "staff"; renderWelcome(); };
     document.getElementById("demo").onclick = loadDemo;
   }
+  function nomeDoEmail(email) {
+    var local = String(email || "").split("@")[0].split("+")[0];
+    return local.replace(/[._\-]+/g, " ").trim().replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+  }
+  // Entrada do atendente: um campo. O convite carrega o e-mail, a loja e o
+  // papel — pedir tudo isso de novo era digitação à toa.
+  function renderStaffEntry(error) {
+    appEl.innerHTML = authFrame(
+      '<h1 class="anton" style="font-size:24px;margin:10px 0 4px">Entrada do atendente</h1>' +
+      '<p class="ob-tag">Cole o link ou o código que o responsável te mandou por e-mail.</p>' +
+      '<label class="field" style="margin-top:16px"><span>Convite</span>' +
+      '<input id="authinvite" inputmode="text" autocomplete="off" autocapitalize="characters" placeholder="Link ou código de 8 letras" value="' + esc(_pendingInvite || "") + '"></label>' +
+      (error ? '<div class="ob-tag" style="color:#ffb3c1;margin-top:10px">' + esc(error) + '</div>' : '') +
+      '<p class="ob-tag" style="font-size:12px;margin-top:8px;opacity:.85">Não recebeu? Peça ao responsável para reenviar em Ajustes › Minha loja.</p>',
+      '<button class="btn bone block xl slab" id="authnext">Continuar</button>' +
+      '<button class="btn ghost block plain" id="authswitch" style="color:#fff;font-size:12px;min-height:36px">‹ Trocar tipo de acesso</button>' +
+      '<button class="btn ghost block" id="demo" style="border-color:rgba(255,255,255,.4);color:#fff">Ver demonstração</button>'
+    );
+    authWireSecret();
+    var inp = document.getElementById("authinvite");
+    setTimeout(function () { try { inp.focus(); } catch (e) {} }, 60);
+    inp.addEventListener("keydown", function (e) { if (e.key === "Enter") document.getElementById("authnext").click(); });
+    document.getElementById("authnext").onclick = function () {
+      var raw = (inp.value || "").trim();
+      if (!raw) return renderStaffEntry("Cole o convite que você recebeu.");
+      renderInviteJoin(raw);
+    };
+    document.getElementById("authswitch").onclick = function () { authMode = ""; _pendingInvite = ""; renderAccessChoice(); };
+    document.getElementById("demo").onclick = loadDemo;
+  }
+  // Tela única: mostra de qual loja é o convite e qual será o papel, e pede só
+  // o que falta (senha; nome, se a conta ainda não existe). Sem telefone e sem
+  // código de 6 dígitos — o convite chegou no e-mail da pessoa e já é a prova.
+  function renderInviteJoin(rawToken, error, preview) {
+    authMode = "staff";
+    _pendingInvite = rawToken;
+    if (!preview) {
+      appEl.innerHTML = authFrame('<h1 class="anton" style="font-size:24px;margin:10px 0 4px">Lendo o convite…</h1>' +
+        '<p class="ob-tag">Só um instante.</p>', '');
+      authApi("/invites/" + encodeURIComponent(rawToken)).then(function (j) {
+        renderInviteJoin(rawToken, "", j);
+      }).catch(function (e) {
+        renderStaffEntry(apiMsg(e, "Convite inválido ou já usado"));
+      });
+      return;
+    }
+    var novo = !preview.hasAccount;
+    var sugestao = preview.name || nomeDoEmail(preview.email);
+    var papel = (preview.roleLabel || preview.role || "").replace(/^./, function (c) { return c.toUpperCase(); });
+    appEl.innerHTML = authFrame(
+      '<h1 class="anton" style="font-size:26px;margin:10px 0 2px">' + esc(preview.store.name) + '</h1>' +
+      '<p class="ob-tag" style="font-size:13px">Você entra como <b>' + esc(papel) + '</b>' +
+      (preview.invitedBy ? ' · convite de ' + esc(preview.invitedBy) : '') + '</p>' +
+      '<p class="ob-tag" style="font-size:12px;opacity:.85">' + esc(preview.email) + '</p>' +
+      (novo ? '<label class="field" style="margin-top:16px"><span>Seu nome</span><input id="joinname" autocomplete="name" placeholder="Como te chamam?" value="' + esc(sugestao) + '"></label>' +
+              '<label class="field"><span>Crie uma senha (mín. 8)</span><input id="joinpw" type="password" autocomplete="new-password" placeholder="••••••••"></label>'
+            : '<label class="field" style="margin-top:16px"><span>Sua senha</span><input id="joinpw" type="password" autocomplete="current-password" placeholder="••••••••"></label>') +
+      (error ? '<div class="ob-tag" style="color:#ffb3c1;margin-top:10px">' + esc(error) + '</div>' : '') +
+      (novo ? '<p class="ob-tag" style="font-size:12px;margin-top:8px;opacity:.85">A senha é só para você voltar a entrar em outro aparelho.</p>' : ''),
+      '<button class="btn bone block xl slab" id="joingo">Entrar na equipe</button>' +
+      (novo ? '' : '<button class="btn ghost block plain" id="joinforgot" style="color:#fff;font-size:12px;min-height:34px">Esqueci minha senha</button>') +
+      '<button class="btn ghost block plain" id="joinother" style="color:#fff;font-size:12px;min-height:36px">‹ usar outro convite</button>'
+    );
+    authWireSecret();
+    var pw = document.getElementById("joinpw");
+    setTimeout(function () { try { (novo ? document.getElementById("joinname") : pw).focus(); } catch (e) {} }, 60);
+    pw.addEventListener("keydown", function (e) { if (e.key === "Enter") document.getElementById("joingo").click(); });
+    var forgot = document.getElementById("joinforgot");
+    if (forgot) forgot.onclick = function () { authFlowId = preview.email; authForgotFlow(); };
+    document.getElementById("joinother").onclick = function () { _pendingInvite = ""; renderStaffEntry(); };
+    document.getElementById("joingo").onclick = function () {
+      var go = document.getElementById("joingo");
+      var senha = pw.value || "";
+      var nome = novo ? ((document.getElementById("joinname") || {}).value || "").trim() : "";
+      if (novo && senha.length < 8) return renderInviteJoin(rawToken, "A senha precisa ter 8 caracteres ou mais.", preview);
+      if (!novo && !senha) return renderInviteJoin(rawToken, "Digite a senha da sua conta.", preview);
+      go.disabled = true; go.textContent = "Entrando…";
+      authApi("/invites/claim", "POST", { token: rawToken, name: nome, password: senha }).then(function (j) {
+        _pendingInvite = "";
+        authToken = j.token; authUser = j.user;
+        return authStoreToken(authToken).then(function () { return j; });
+      }).then(function (j) {
+        authReady = true;
+        if (j && j.store) { storeAdopt(j.store); state.setup = true; state.setupOwn = false; persist(false); }
+        flow = "app"; renderAll();
+        try { licInit(); } catch (e) {}
+        syncStart(); wakeLockMaybe(); updBeat();
+        haptic(10);
+        toast("Você entrou em " + ((j.store && j.store.name) || "sua loja"));
+      }).catch(function (e) {
+        // conta que já existia: a prévia dizia "nova", o servidor corrige
+        if (e && e.status === 401 && e.data && e.data.hasAccount && novo) {
+          preview.hasAccount = true;
+          return renderInviteJoin(rawToken, "Este e-mail já tem conta — entre com a senha dela.", preview);
+        }
+        renderInviteJoin(rawToken, apiMsg(e, "Não foi possível entrar agora"), preview);
+      });
+    };
+  }
   function renderWelcome(error) {
     if (!authMode) return renderAccessChoice();
-    var staffEntry = authMode === "staff";
+    if (authMode === "staff") return renderStaffEntry(error);
     appEl.innerHTML = authFrame(
-      '<h1 class="anton" style="font-size:24px;margin:10px 0 4px">' + (staffEntry ? "Entrada do atendente" : "Entrada do proprietário") + '</h1>' +
-      '<p class="ob-tag">' + (staffEntry ? "Use o e-mail que recebeu o convite do proprietário." : "A comanda do bar no celular. Anota, soma e fecha a conta.") + '</p>' +
-      (staffEntry ? '<label class="field" style="margin-top:16px"><span>Convite (link ou código)</span><input id="authinvite" inputmode="text" autocomplete="off" placeholder="Cole o convite recebido" value=""></label>' : '') +
+      '<h1 class="anton" style="font-size:24px;margin:10px 0 4px">Entrada do proprietário</h1>' +
+      '<p class="ob-tag">A comanda do bar no celular. Anota, soma e fecha a conta.</p>' +
       '<label class="field" style="margin-top:16px"><span>Seu e-mail</span>' +
       '<input id="authid" type="email" inputmode="email" autocomplete="username" autocapitalize="none" placeholder="voce@exemplo.com" value="' + esc(authFlowId) + '"></label>' +
       (error ? '<div class="ob-tag" style="color:#ffb3c1;margin-top:10px">' + esc(error) + '</div>' : '') +
@@ -2555,7 +2656,10 @@
     );
     authWireSecret();
     var activate = document.getElementById("accessgo"); if (activate) activate.onclick = authRedeemAccess;
-    document.getElementById("pendingteam").onclick = storeLinkSheet;
+    document.getElementById("pendingteam").onclick = function () {
+      if (authUser && authUser.accountType === "staff" && !storeLinked()) { authMode = "staff"; return renderStaffEntry(); }
+      storeLinkSheet();
+    };
     document.getElementById("pendinglogout").onclick = authLogout;
   }
   function authStep1() {
@@ -2565,12 +2669,6 @@
     var digits = id.replace(/\D/g, "");
     if (!isEmail && digits.length < 10) { renderWelcome("Informe um e-mail válido."); return; }
     authFlowId = id;
-    if (authMode === "staff") {
-      var iv = (document.getElementById("authinvite") || {}).value || "";
-      var m = iv.match(/(?:invite=|token=)([A-Za-z0-9_\-]+)/i);
-      if (m) _pendingInvite = m[1];
-      else if (iv.trim()) _pendingInvite = iv.trim().replace(/[^A-Za-z0-9_\-]/g, "");
-    }
     var btn = document.getElementById("authnext"); if (btn) { btn.disabled = true; btn.textContent = "Verificando…"; }
     authApi("/auth/check", "POST", { identifier: id }).then(function (j) {
       renderAuthStep2(!!(j && j.exists), (j && j.name) || "");
@@ -2600,7 +2698,6 @@
         '<h1 class="anton" style="font-size:24px;margin:10px 0 2px">Vamos criar sua conta</h1>' +
         '<p class="ob-tag" style="font-size:13px">' + esc(authFlowId) + ' — conta nova</p>' +
         '<label class="field" style="margin-top:12px"><span>Seu nome</span><input id="authname" autocomplete="name" placeholder="Como te chamam?"></label>' +
-        '<label class="field"><span>Telefone com DDD</span><input id="authphone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(00) 00000-0000"></label>' +
         '<label class="field"><span>Crie uma senha (mín. 8)</span><input id="authpw" type="password" autocomplete="new-password" placeholder="••••••••"></label>' +
         (warn ? '<div class="ob-tag" style="color:#ffb3c1;margin-top:10px">' + esc(warn) + '</div>' : '') +
         '<div id="authpwhint" style="font-size:12px;margin-top:6px;color:#f7d4cc">Use pelo menos 8 caracteres.</div>',
@@ -2618,12 +2715,10 @@
     var go = document.getElementById("authgo");
     if (isNew) {
       var nm = (document.getElementById("authname") || {}).value.trim();
-      var ph = (document.getElementById("authphone") || {}).value.trim();
       if (!nm) return renderAuthStep2(false, "", "Informe seu nome.");
-      if (ph.replace(/\D/g, "").length < 10) return renderAuthStep2(false, "", "Informe um telefone com DDD.");
       if (pw.length < 8) return renderAuthStep2(false, "", "A senha precisa ter 8+ caracteres.");
       if (go) { go.disabled = true; go.textContent = "Criando…"; }
-      authApi("/auth/register", "POST", { name: nm, phone: ph, email: authFlowId, password: pw }).then(function (j) {
+      authApi("/auth/register", "POST", { name: nm, email: authFlowId, password: pw }).then(function (j) {
         authToken = j.token; authUser = j.user; return authStoreToken(authToken).then(function () { return j; });
       }).then(function (j) { if (j && j.needsVerification === false) return authAfterLogin(); renderAuthCode(); }).catch(function (e) {
         var m = (e && e.message) || "não foi possível criar a conta";
@@ -4267,7 +4362,8 @@
     try {
       var u = new URL(String(raw || ""));
       var tok = u.searchParams.get("invite") || u.searchParams.get("token");
-      if (tok) { _pendingInvite = tok; authMode = "staff"; if (authReady) handlePendingInvite(); }
+      // Vale logado ou não: a tela do convite cobre os dois casos.
+      if (tok) { _pendingInvite = tok; authMode = "staff"; handlePendingInvite(); }
     } catch (e) {}
   }
   try {
@@ -4279,7 +4375,9 @@
   } catch (e) {}
   function handlePendingInvite() {
     if (!_pendingInvite) return;
-    if (!authReady || !authToken) { toast("Entre na sua conta para aceitar o convite"); renderAuthGate("choose"); return; }
+    // Sem conta ainda: a tela do convite resolve cadastro e entrada de uma vez.
+    if (!authReady || !authToken) { flow = "welcome"; renderInviteJoin(_pendingInvite); return; }
+    // Já logado neste aparelho: aceita direto, sem recomeçar o login.
     var tok = _pendingInvite; _pendingInvite = "";
     inviteSheet(tok);
   }
@@ -4291,7 +4389,16 @@
   checkForcedUpdate();   // 1ª coisa no boot: versão obsoleta -> bloqueio total antes de tudo
 
   authInit().then(function (ok) {
-    if (!ok) { licInit().then(function () { updBeat(); renderAll(); if (_pendingInvite) toast("Entre na sua conta para aceitar o convite"); }); return; }
+    if (!ok) {
+      licInit().then(function () {
+        updBeat();
+        // Chegou por link/código de convite sem conta: abre a entrada da equipe
+        // direto, em vez de mandar a pessoa se cadastrar primeiro.
+        if (_pendingInvite) { flow = "welcome"; authMode = "staff"; renderInviteJoin(_pendingInvite); return; }
+        renderAll();
+      });
+      return;
+    }
     authAfterLogin();
   });
 })();

@@ -1,1 +1,1 @@
-{"version":"4.15.0","min":"4.15.0","versionCode":76,"minVersionCode":76,"apkUrl":"https://pedeai.deckcorp.com.br/pedeai-latest.apk","notice":"Correção: convite de atendente agora mostra o motivo real da falha e o dono pode encerrar a própria loja"}
+{"version":"4.16.0","min":"4.16.0","versionCode":77,"minVersionCode":77,"apkUrl":"https://pedeai.deckcorp.com.br/pedeai-latest.apk","notice":"Entrada do atendente em uma tela: o link do convite já abre o app pronto, sem telefone e sem código de 6 dígitos"}

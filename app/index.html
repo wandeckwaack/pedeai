@@ -1888,7 +1888,7 @@
 
   // papéis de sincronização por aparelho
   var SYNC_ROLES = [["cashier", "Caixa"], ["waiter", "Garçom"], ["kitchen", "Cozinha"], ["full", "Tudo"]];
-  function syncRoleLabel(r) { var m = { full: "Tudo", cashier: "Caixa", waiter: "Garçom", kitchen: "Cozinha" }; return m[r] || "Tudo"; }
+  function syncRoleLabel(r) { var m = { full: "Proprietário", cashier: "Caixa", waiter: "Garçom", kitchen: "Cozinha" }; return m[r] || "Acesso"; }
   function syncRoleTabs(r) {
     if (r === "cashier") return [["mesas", "Mesas", "comanda"], ["dia", "Caixa", "bill"]];
     if (r === "waiter") return [["mesas", "Mesas", "comanda"], ["cozinha", "Cozinha", "pan"]];
@@ -1951,7 +1951,15 @@
     storeProvisionBusy = true;
     state.store.provisioning = true;
     storeList().then(function (j) {
-      var owned = ((j && j.stores) || []).filter(function (s) { return s && s.role === "full"; })[0];
+      var available = (j && j.stores) || [];
+      // Conta com mais de uma loja: nunca escolher silenciosamente a loja
+      // própria, pois isso pode esconder o vínculo de atendente em outra loja.
+      if (!state.store.id && available.length > 1) {
+        storeProvisionBusy = false;
+        storeLinkSheet();
+        return null;
+      }
+      var owned = available.filter(function (s) { return s && s.role === "full"; })[0];
       return owned ? Promise.resolve({ store: owned }) : storeCreate(name);
     }).then(function (j) {
       if (j && j.store) {

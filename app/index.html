@@ -527,8 +527,8 @@
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.14.4";
-  var VERSION_CODE = 70;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
+  var KEY = "pedeai.v2", VERSION = "4.14.6";
+  var VERSION_CODE = 72;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- logger de erros (silencioso -> backend -> erros_pedeai.log) ----------
@@ -842,7 +842,9 @@
       var account = await authApi("/auth/me");
       authUser = account.user; authApplyServerReset(authUser); authReady = true;
       await authRestore(); await licInit();
-      if (state.setup) { flow = "app"; renderAll(); ensureOwnerStore(); }
+      if (_pendingInvite) {
+        flow = state.setup ? "app" : "welcome"; renderAll(); handlePendingInvite();
+      } else if (state.setup) { flow = "app"; renderAll(); ensureOwnerStore(); }
       else { startTutorial(); }   // conta nova sem bar configurado -> onboarding
       syncStart(); wakeLockMaybe(); updBeat();
       if (authUser.access && authUser.access.status === "trial" && authUser.access.active) {

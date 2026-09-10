@@ -1249,7 +1249,7 @@
       enabled: true, jwt: "", jwtExp: 0,
       cfgAt: prev ? (prev.cfgAt || 0) : 0,
       tomb: prev ? (prev.tomb || {}) : {}, _tombPending: prev ? (prev._tombPending || {}) : {},
-      status: "off", events: prev ? (prev.events || []) : []
+      status: "off", devicesOnline: 0, events: prev ? (prev.events || []) : []
     };
     persist();
     syncResetRuntime();
@@ -1514,6 +1514,7 @@
       state.store.authFails = 0; state.store.stuckSince = 0;
       syncPeers = Array.isArray(res.peers) ? res.peers.slice() : [];
       state.store.peers = syncPeers;
+      state.store.devicesOnline = isFinite(Number(res.devicesOnline)) ? Math.max(0, Number(res.devicesOnline)) : 0;
       state.store.lastRoundTripMs = Math.max(0, Date.now() - request.startedAt);
       state.store.heartbeat = res.pong === ping ? "pong" : "http";
       if (res.pong === ping) state.store.lastPongAt = Date.now();
@@ -3553,7 +3554,7 @@
         '<div class="cfg-row">Loja<span class="right muted">' + esc(state.store.name || "—") + '</span></div>' +
         '<div class="cfg-row">Seu papel<span class="right muted">' + esc(syncRoleLabel(state.store.role)) + '</span></div>' +
         '<div class="cfg-row">Situação<span class="right muted" id="networkcfgstatus">' + stt + '</span></div>' +
-        (state.store.status === "online" ? '<div class="cfg-row">Conectados agora<span class="right muted">' + ((state.store.peers || syncPeers).length || 1) + ' aparelho(s)</span></div>' : ''));
+        (state.store.status === "online" ? '<div class="cfg-row">Aparelhos ativos agora<span class="right muted">' + (state.store.devicesOnline || 1) + ' (este incluído)</span></div>' : ''));
       if (storeRole() === "full") {
       var sc1 = document.createElement("button"); sc1.className = "cfg-row act"; sc1.innerHTML = ic("plus", 17) + " Adicionar atendente";
         sc1.onclick = storeTeamSheet; s2.appendChild(sc1);

@@ -1117,7 +1117,12 @@
   if (!state || typeof state.setup === "undefined") state = blankState();
   migrate();
   if (state.setup && state.day.date !== todayStr()) archiveDay();
-  function persist(sendBackup) { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { reportError("storage", { message: "falha ao salvar estado local: " + (e && e.message || e), stack: e && e.stack }); } if (sendBackup !== false) authBackupSoon(); }
+  function persist(sendBackup) {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); }
+    catch (e) { reportError("storage", { message: "falha ao salvar estado local: " + (e && e.message || e), stack: e && e.stack }); }
+    if (sendBackup !== false) authBackupSoon();
+    try { if (sendBackup !== false && typeof syncActive === "function" && syncActive() && !syncBusy) syncKick(false, true); } catch (e) {}
+  }
 
   function migrate() {
     if (!state.settings) state.settings = {};
@@ -1130,6 +1135,7 @@
     // Mantém somente o responsável local para atribuição histórica das comandas.
     state.staff = (Array.isArray(state.staff) ? state.staff : []).filter(function (s) { return s && s.role === "admin"; }).map(function (s) { var o = {}; for (var k in s) if (k !== "pin") o[k] = s[k]; return o; });
     if (!state.staff.length && state.setup) state.staff = [{ id: uid(), name: (state.biz && state.biz.name) ? "Responsável" : "Você", role: "admin" }];
+    if (state.store && state.store.id && state.store.role && state.store.role !== "full") { state.staff = []; state.activeStaffId = null; }
     if (!state.activeStaffId || !state.staff.some(function (s) { return s.id === state.activeStaffId; })) state.activeStaffId = state.staff[0] ? state.staff[0].id : null;
     if (!state.settings.printer) state.settings.printer = { mode: "off", width: 58, showOnClose: false, autoBill: false, header: "" };
     if (!state.settings.theme || state.settings.theme === "auto") state.settings.theme = "dark";
@@ -1184,12 +1190,12 @@
   // por um JWT curto ({uid, store, role}) e sincroniza mesas/itens/vendas a cada
   // ~3s (last-write-wins por updatedAt). Sem código, sem PIN, sem QR — o vínculo é pela conta.
   var SYNC_URL = "https://deckk.duckdns.org/sync";
-  var SYNC_POLL_MS = 3000, SYNC_TIMEOUT_MS = 8000, SYNC_RETRY_MAX_MS = 15000;
+  var SYNC_POLL_MS = 1200, SYNC_TIMEOUT_MS = 8000, SYNC_RETRY_MAX_MS = 15000;
   var SYNC_PHANTOM_MS = 20000;   // "online" sem nenhum pong há mais que isto = conexão fantasma
   var syncManualLockUntil = 0;   // trava anti-repique do botão "Sincronizar agora"
   var syncTimer = null, syncBusy = false, syncPushedAt = 0, syncEpoch = 0, syncManualPromise = null;
   var syncRequest = null, syncFailures = 0, syncRetryAt = 0, syncRetryStatus = 0;
-  var syncBackgrounded = false, syncLastKick = 0;
+  var syncBackgrounded = false, syncLastKick = 0, syncClockOffset = 0;
   var syncLastToast = "";
   var syncPeers = [];
   var storeJwtInFlight = null;
@@ -1198,13 +1204,14 @@
   // Nunca sincroniza em demonstração: ambiente 100% local/mock, sem conta, sem
   // JWT, sem tocar no servidor nem no banco oficial.
   function syncActive() { return !isDemo() && storeLinked() && state.store.enabled !== false && !!authToken; }
-  function touchTable(t) { if (t) t.updatedAt = Date.now(); }
-  function touchItem(t, it) { var n = Date.now(); if (it) it.updatedAt = n; if (t) t.updatedAt = n; }
+  function syncNow() { return Date.now() + syncClockOffset; }
+  function touchTable(t) { if (t) t.updatedAt = syncNow(); }
+  function touchItem(t, it) { var n = syncNow(); if (it) it.updatedAt = n; if (t) t.updatedAt = n; }
   function removeItem(t, it) {
     t.deletedItems = t.deletedItems || {}; t.deletedItems[it.id] = Date.now();
     t.items = t.items.filter(function (x) { return x.id !== it.id; }); touchTable(t);
   }
-  function touchCfg() { if (state.store) state.store.cfgAt = Date.now(); }
+  function touchCfg() { if (state.store) state.store.cfgAt = syncNow(); }
   function tombTable(id) {
     if (!state.store) return;
     var now = Date.now();
@@ -1496,6 +1503,10 @@
           if (state.store._tombPending[id] <= request.startedAt) delete state.store._tombPending[id];
         });
       }
+      if (res.serverTime) {
+        var measuredOffset = Number(res.serverTime) - Date.now();
+        if (isFinite(measuredOffset)) syncClockOffset = Math.max(-86400000, Math.min(86400000, measuredOffset));
+      }
       var beforeSnap = notifSnapshot(), changed = syncMerge(res), previousPeers = syncPeers.slice();
       syncFailures = 0; syncRetryAt = 0; syncRetryStatus = 0;
       state.store.authFails = 0; state.store.stuckSince = 0;
@@ -1572,7 +1583,7 @@
   function syncResetRuntime() {
     syncStop(); syncFailures = 0; syncRetryAt = 0; syncRetryStatus = 0;
     syncLastKick = 0; syncBackgrounded = false; syncPeers = []; syncLastToast = "";
-    syncManualPromise = null; syncManualLockUntil = 0;
+    syncManualPromise = null; syncManualLockUntil = 0; syncClockOffset = 0;
   }
   function syncLeavePresence(snapshot) {
     // Beacon "sai da presença" — só faz sentido com um JWT válido em mãos.
@@ -4073,6 +4084,13 @@
   // Convite via link (pedeai.deckcorp.com.br/app/?invite=TOKEN) — guarda e trata
   // depois que a conta estiver pronta.
   var _pendingInvite = "";
+  function captureInviteUrl(raw) {
+    try {
+      var u = new URL(String(raw || ""));
+      var tok = u.searchParams.get("invite") || u.searchParams.get("token");
+      if (tok) { _pendingInvite = tok; if (authReady) handlePendingInvite(); }
+    } catch (e) {}
+  }
   try {
     var _iv = new URLSearchParams(location.search).get("invite");
     if (_iv) {
@@ -4086,6 +4104,10 @@
     var tok = _pendingInvite; _pendingInvite = "";
     inviteSheet(tok);
   }
+  try {
+    var _capApp = capApp();
+    if (_capApp && _capApp.addListener) _capApp.addListener("appUrlOpen", function (ev) { captureInviteUrl(ev && ev.url); });
+  } catch (e) {}
 
   checkForcedUpdate();   // 1ª coisa no boot: versão obsoleta -> bloqueio total antes de tudo
 

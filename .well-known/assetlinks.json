@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.deckcorp.pedeai",
+      "sha256_cert_fingerprints": ["55:AE:22:9F:20:9A:25:11:E1:39:32:69:56:BD:16:D1:F3:B7:CE:AA:F9:B4:BF:5C:65:E4:F2:4F:92:A2:4C:74"]
+    }
+  }
+]

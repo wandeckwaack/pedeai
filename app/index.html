@@ -527,8 +527,8 @@
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.14.3";
-  var VERSION_CODE = 69;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
+  var KEY = "pedeai.v2", VERSION = "4.14.4";
+  var VERSION_CODE = 70;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- logger de erros (silencioso -> backend -> erros_pedeai.log) ----------
@@ -4049,7 +4049,9 @@
   }
   window.addEventListener("online", checkForcedUpdate);
   document.addEventListener("visibilitychange", function () { if (!document.hidden) checkForcedUpdate(); });
-  setInterval(checkForcedUpdate, 30 * 60 * 1000);   // + a cada 30 min enquanto o app fica aberto
+  window.addEventListener("focus", checkForcedUpdate);
+  window.addEventListener("pageshow", checkForcedUpdate);
+  setInterval(checkForcedUpdate, 60 * 1000);   // também cobre aparelhos que ficam abertos e não mudam de tela
 
   // ---------- service worker ----------
   // Só no modo PWA (site). Dentro do APK (Capacitor) os arquivos já vêm no pacote —

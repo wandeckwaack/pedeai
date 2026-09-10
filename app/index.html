@@ -527,8 +527,8 @@
 <script>
 (function () {
   "use strict";
-  var KEY = "pedeai.v2", VERSION = "4.14.6";
-  var VERSION_CODE = 72;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
+  var KEY = "pedeai.v2", VERSION = "4.14.7";
+  var VERSION_CODE = 73;   // espelha android/app/build.gradle — decide se o forced-update precisa de APK novo
   var RM = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- logger de erros (silencioso -> backend -> erros_pedeai.log) ----------
@@ -2375,14 +2375,33 @@
     wire(document.getElementById("adminsecret")); wire(document.getElementById("adminsecretword"));
   }
   var authFlowId = "";   // e-mail/telefone digitado no passo 1
-  function renderWelcome(error) {
+  var authMode = "";     // entrada escolhida: owner ou staff
+  function renderAccessChoice() {
     appEl.innerHTML = authFrame(
-      '<p class="ob-tag">A comanda do bar no celular. Anota, soma e fecha a conta.</p>' +
+      '<h1 class="anton" style="font-size:27px;margin:10px 0 6px">Como você vai entrar?</h1>' +
+      '<p class="ob-tag" style="font-size:13px;margin-bottom:16px">Escolha o acesso correto para proteger a loja e a equipe.</p>' +
+      '<button class="btn bone block xl slab" id="authowner" style="text-align:left">👑 Proprietário / lojista<div style="font:600 12px Figtree;margin-top:4px;opacity:.75">Cria e administra o estabelecimento</div></button>' +
+      '<button class="btn ghost block xl slab" id="authstaff" style="text-align:left;color:#fff;border-color:rgba(255,255,255,.45)">👥 Atendente<div style="font:600 12px Figtree;margin-top:4px;opacity:.75">Entra somente com convite do proprietário</div></button>',
+      '<button class="btn ghost block" id="demo" style="border-color:rgba(255,255,255,.4);color:#fff">Ver demonstração</button>'
+    );
+    authWireSecret();
+    document.getElementById("authowner").onclick = function () { authMode = "owner"; renderWelcome(); };
+    document.getElementById("authstaff").onclick = function () { authMode = "staff"; renderWelcome(); };
+    document.getElementById("demo").onclick = loadDemo;
+  }
+  function renderWelcome(error) {
+    if (!authMode) return renderAccessChoice();
+    var staffEntry = authMode === "staff";
+    appEl.innerHTML = authFrame(
+      '<h1 class="anton" style="font-size:24px;margin:10px 0 4px">' + (staffEntry ? "Entrada do atendente" : "Entrada do proprietário") + '</h1>' +
+      '<p class="ob-tag">' + (staffEntry ? "Use o e-mail que recebeu o convite do proprietário." : "A comanda do bar no celular. Anota, soma e fecha a conta.") + '</p>' +
+      (staffEntry ? '<label class="field" style="margin-top:16px"><span>Convite (link ou código)</span><input id="authinvite" inputmode="text" autocomplete="off" placeholder="Cole o convite recebido" value=""></label>' : '') +
       '<label class="field" style="margin-top:16px"><span>Seu e-mail</span>' +
       '<input id="authid" type="email" inputmode="email" autocomplete="username" autocapitalize="none" placeholder="voce@exemplo.com" value="' + esc(authFlowId) + '"></label>' +
       (error ? '<div class="ob-tag" style="color:#ffb3c1;margin-top:10px">' + esc(error) + '</div>' : '') +
       '<p class="ob-tag" style="font-size:12px;margin-top:8px;opacity:.85">Uma conta guarda seus dados e conecta a equipe. O app também funciona sem conta e offline.</p>',
       '<button class="btn bone block xl slab" id="authnext">Avançar</button>' +
+      '<button class="btn ghost block plain" id="authswitch" style="color:#fff;font-size:12px;min-height:36px">‹ Trocar tipo de acesso</button>' +
       '<button class="btn ghost block" id="demo" style="border-color:rgba(255,255,255,.4);color:#fff">Ver demonstração</button>'
     );
     authWireSecret();
@@ -2390,6 +2409,7 @@
     setTimeout(function () { try { inp.focus(); } catch (e) {} }, 60);
     inp.addEventListener("keydown", function (e) { if (e.key === "Enter") document.getElementById("authnext").click(); });
     document.getElementById("authnext").onclick = authStep1;
+    document.getElementById("authswitch").onclick = function () { authMode = ""; renderAccessChoice(); };
     document.getElementById("demo").onclick = loadDemo;
   }
   function authStep1() {
@@ -2399,6 +2419,13 @@
     var digits = id.replace(/\D/g, "");
     if (!isEmail && digits.length < 10) { renderWelcome("Informe um e-mail válido."); return; }
     authFlowId = id;
+    if (authMode === "staff") {
+      var iv = (document.getElementById("authinvite") || {}).value || "";
+      var m = iv.match(/(?:invite=|token=)([A-Za-z0-9_\-]+)/i);
+      if (m) _pendingInvite = m[1];
+      else if (iv.trim()) _pendingInvite = iv.trim().replace(/[^A-Za-z0-9_\-]/g, "");
+      if (!_pendingInvite) { renderWelcome("Cole o convite recebido pelo proprietário."); return; }
+    }
     var btn = document.getElementById("authnext"); if (btn) { btn.disabled = true; btn.textContent = "Verificando…"; }
     authApi("/auth/check", "POST", { identifier: id }).then(function (j) {
       renderAuthStep2(!!(j && j.exists), (j && j.name) || "");
@@ -4090,13 +4117,13 @@
     try {
       var u = new URL(String(raw || ""));
       var tok = u.searchParams.get("invite") || u.searchParams.get("token");
-      if (tok) { _pendingInvite = tok; if (authReady) handlePendingInvite(); }
+      if (tok) { _pendingInvite = tok; authMode = "staff"; if (authReady) handlePendingInvite(); }
     } catch (e) {}
   }
   try {
     var _iv = new URLSearchParams(location.search).get("invite");
     if (_iv) {
-      _pendingInvite = _iv;
+      _pendingInvite = _iv; authMode = "staff";
       try { history.replaceState(null, "", location.pathname); } catch (e) {}
     }
   } catch (e) {}

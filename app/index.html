@@ -4053,7 +4053,7 @@
   // Só no modo PWA (site). Dentro do APK (Capacitor) os arquivos já vêm no pacote —
   // um SW aqui só arriscaria servir versão velha depois de atualizar o app.
   if (!window.Capacitor && "serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
-    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js?v=auto-9").catch(function (e) { reportError("serviceworker", { message: "registro do SW falhou: " + (e && e.message || e), stack: e && e.stack }); }); });
+    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js?v=auto-10").catch(function (e) { reportError("serviceworker", { message: "registro do SW falhou: " + (e && e.message || e), stack: e && e.stack }); }); });
   } else if (window.Capacitor && "serviceWorker" in navigator) {
     // Desativa apenas o SW deste app no APK, preservando os caches existentes.
     try {

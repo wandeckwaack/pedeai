@@ -844,6 +844,8 @@
       await authRestore(); await licInit();
       if (_pendingInvite) {
         flow = state.setup ? "app" : "welcome"; renderAll(); handlePendingInvite();
+      } else if (authUser && authUser.accountType === "unassigned") {
+        flow = "welcome"; renderAccessPending();
       } else if (state.setup) { flow = "app"; renderAll(); ensureOwnerStore(); }
       else { startTutorial(); }   // conta nova sem bar configurado -> onboarding
       syncStart(); wakeLockMaybe(); updBeat();
@@ -2420,6 +2422,16 @@
     document.getElementById("authnext").onclick = authStep1;
     document.getElementById("authswitch").onclick = function () { authMode = ""; renderAccessChoice(); };
     document.getElementById("demo").onclick = loadDemo;
+  }
+  function renderAccessPending() {
+    appEl.innerHTML = authFrame(
+      '<h1 class="anton" style="font-size:25px;margin:10px 0 5px">Acesso ainda não liberado</h1>' +
+      '<p class="ob-tag" style="font-size:13px">Esta conta não é proprietária nem está vinculada a uma equipe.</p>' +
+      '<p class="ob-tag" style="font-size:13px;margin-top:10px">Para entrar como atendente, use um convite do proprietário. Para criar uma loja, solicite a ativação de proprietário ao administrador.</p>',
+      '<button class="btn ghost block" id="pendinglogout" style="color:#fff;border-color:rgba(255,255,255,.4)">Sair da conta</button>'
+    );
+    authWireSecret();
+    document.getElementById("pendinglogout").onclick = authLogout;
   }
   function authStep1() {
     var id = (document.getElementById("authid") || {}).value || "";

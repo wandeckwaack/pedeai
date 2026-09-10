@@ -2675,6 +2675,8 @@
     if (kitchen) { current = "cozinha"; openTableId = null; }
     if (!tabs.some(function (t) { return t[0] === current; })) current = tabs[0][0];
     var st = activeStaff(), b = state.biz;
+    var titularName = (authUser && authUser.name) ? String(authUser.name).trim() : "";
+    var headerStaffName = (role === "admin" && titularName) ? titularName : (st ? st.name : "");
     var onHome = current === tabs[0][0] && !openTableId;
     var showBack = !kitchen;
     var dot = '<button type="button" class="network-status" id="networkstatus"><span class="syncdot" id="syncdot" aria-hidden="true"></span><span id="networklabel" role="status" aria-live="polite">' + networkLabel() + '</span></button>';
@@ -2685,8 +2687,8 @@
         '<div class="bname">' + esc(kitchen ? "Cozinha" : (b.name || "PedeAí")) + '</div>' + dot +
         (kitchen
           ? '<button class="staffchip" id="kexit"><span class="av">' + ic("pan", 14) + '</span><span><span class="nm">Preparo</span><br><span class="rl">. + esc((state.store.name || "Preparo")) + . · sair</span></span></button>'
-          : '<button class="staffchip" id="staffchip"><span class="av">' + esc(initials(st ? st.name : "")) + '</span>' +
-            '<span><span class="nm">' + esc((st ? st.name : "").split(" ")[0] || (sr && sr !== "full" ? syncRoleLabel(sr) : "—")) + '</span><br><span class="rl">' + (sr && sr !== "full" ? esc(state.store.name || "") : (ROLE_LABEL[role] || "")) + '</span></span></button>') +
+          : '<button class="staffchip" id="staffchip"><span class="av">' + esc(initials(headerStaffName)) + '</span>' +
+            '<span><span class="nm">' + esc(headerStaffName.split(" ")[0] || (sr && sr !== "full" ? syncRoleLabel(sr) : "—")) + '</span><br><span class="rl">' + (sr && sr !== "full" ? esc(state.store.name || "") : (ROLE_LABEL[role] || "")) + '</span></span></button>') +
       '</div><div class="awning thin"></div>' +
       /* O status do acesso fica em Minha conta; não polui a comanda com uma
          faixa de demonstração depois que o usuário já autenticou. */

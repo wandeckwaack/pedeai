@@ -705,6 +705,18 @@
     try { if (s && s.remove) await s.remove({ key: "pedeai.auth.token" }); } catch (e) {}
     try { localStorage.removeItem("pedeai.auth.token"); } catch (e) {}
   }
+  function authApplyServerReset(user) {
+    var mark = String((user && user.dataResetAt) || "").trim();
+    if (!mark || !user || !user.id) return false;
+    var markerKey = "pedeai.data-reset." + String(user.id), seen = "";
+    try { seen = localStorage.getItem(markerKey) || ""; } catch (e) {}
+    if (seen === mark) return false;
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    try { localStorage.setItem(markerKey, mark); } catch (e) {}
+    state = blankState(); migrate(); flow = "welcome"; current = "mesas"; openTableId = null;
+    try { syncResetRuntime(); } catch (e) {}
+    return true;
+  }
   // "Apagar e recomeçar": por segurança revoga TODAS as sessões da conta (todos os
   // aparelhos) antes de zerar o app. Sem token não faz nada.
   async function authRevokeAllSessions() {
@@ -728,7 +740,7 @@
       var j = await authApi("/auth/me");
       if (authToken !== token) return false;
       if (!j || !j.user) throw Error("Resposta inválida da conta");
-      authUser = j.user; authReady = true; authSessionUnavailable = false; authSessionAttempt = 0;
+      authUser = j.user; authApplyServerReset(authUser); authReady = true; authSessionUnavailable = false; authSessionAttempt = 0;
       clearTimeout(authSessionTimer); return true;
     } catch (e) {
       if (authToken !== token) return false;
@@ -828,7 +840,7 @@
   async function authAfterLogin() {
     try {
       var account = await authApi("/auth/me");
-      authUser = account.user; authReady = true;
+      authUser = account.user; authApplyServerReset(authUser); authReady = true;
       await authRestore(); await licInit();
       if (state.setup) { flow = "app"; renderAll(); ensureOwnerStore(); }
       else { startTutorial(); }   // conta nova sem bar configurado -> onboarding

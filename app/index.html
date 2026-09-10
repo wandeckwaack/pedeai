@@ -790,7 +790,7 @@
     authInit().then(function (ok) {
       if (authSessionUnavailable) return;
       if (!ok) { renderAll(); return; }
-      authRestore().then(function () { return licInit(); }).then(function () { renderAll(); syncStart(); wakeLockMaybe(); });
+      authAfterLogin();
     }).catch(function () {});
   }
   function renderSessionWaiting() {
@@ -842,6 +842,19 @@
       var account = await authApi("/auth/me");
       authUser = account.user; authApplyServerReset(authUser); authReady = true;
       await authRestore(); await licInit();
+      if (authUser.accountType === "staff" && !_pendingInvite) {
+        var membership = await storeList();
+        var joined = (membership.stores || []).filter(function (s) { return s.role !== "full"; });
+        var selected = joined.find(function (s) { return state.store && s.id === state.store.id; });
+        if (!selected && joined.length === 1) selected = joined[0];
+        if (selected) { storeAdopt(selected); state.setup = true; persist(false); }
+        else {
+          if (state.store) { state.store.enabled = false; state.store.id = null; state.store.jwt = ""; }
+          syncResetRuntime(); flow = "welcome"; renderAccessPending();
+          if (joined.length > 1) storeLinkSheet();
+          return;
+        }
+      }
       if (_pendingInvite) {
         flow = state.setup ? "app" : "welcome"; renderAll(); handlePendingInvite();
       } else if (authUser && authUser.accountType === "unassigned") {
@@ -1207,7 +1220,7 @@
   function storeRole() { return (state.store && state.store.role) || "full"; }
   // Nunca sincroniza em demonstração: ambiente 100% local/mock, sem conta, sem
   // JWT, sem tocar no servidor nem no banco oficial.
-  function syncActive() { return !isDemo() && storeLinked() && state.store.enabled !== false && !!authToken; }
+  function syncActive() { return !isDemo() && !(authUser && authUser.accountType === "unassigned") && storeLinked() && state.store.enabled !== false && !!authToken; }
   function syncNow() { return Date.now() + syncClockOffset; }
   function touchTable(t) { if (t) t.updatedAt = syncNow(); }
   function touchItem(t, it) { var n = syncNow(); if (it) it.updatedAt = n; if (t) t.updatedAt = n; }
@@ -1240,11 +1253,28 @@
   }
   function inviteAccept(token) {
     return storeApi("/invites/accept", "POST", { token: token }).then(function (j) {
+      if (j && j.user) authUser = j.user;
       if (j && j.store) storeAdopt(j.store);
       return j;
     });
   }
   function storeAdopt(store) {
+    var oldId = state.store && state.store.id;
+    var switching = oldId && oldId !== store.id;
+    var firstStaff = !oldId && store.role !== "full";
+    if (switching || firstStaff) {
+      // Persist before replacing anything. Quota failure aborts adoption.
+      var prefix = KEY + ".store." + String(authUser && authUser.id || "local") + ".";
+      var savedKey = prefix + String(oldId || "unlinked");
+      localStorage.setItem(savedKey, JSON.stringify(state));
+      var saved = localStorage.getItem(prefix + String(store.id));
+      var next = saved ? JSON.parse(saved) : blankState();
+      if (!next || typeof next !== "object") throw Error("Cópia local da loja inválida");
+      syncResetRuntime();
+      state = next; migrate();
+      state.setup = true; state.setupOwn = store.role === "full";
+      state.biz.name = store.name || "";
+    }
     var prev = (state.store && state.store.id === store.id) ? state.store : null;
     state.store = {
       id: store.id, name: store.name || "", role: store.role || "full",
@@ -1917,7 +1947,7 @@
         b.querySelectorAll("[data-sid]").forEach(function (el) {
           el.onclick = function () {
             var st = stores.filter(function (x) { return String(x.id) === el.dataset.sid; })[0];
-            if (st) { storeAdopt(st); closeSheet(); haptic(8); flow = "app"; renderAll(); toast("Conectado a " + st.name); }
+            if (st) { storeAdopt(st); state.setup = true; persist(false); closeSheet(); haptic(8); flow = "app"; renderAll(); toast("Conectado a " + st.name); }
           };
         });
         b.querySelector("#stinvite").onclick = function () { closeSheet(); inviteSheet(); };
@@ -1947,7 +1977,7 @@
   }
   var storeProvisionBusy = false;
   function ensureOwnerStore() {
-    if (!authReady || !authToken || isDemo() || storeLinked() || !state.setupOwn || storeProvisionBusy) return;
+    if (!authReady || !authToken || !authUser || authUser.accountType !== "owner" || isDemo() || storeLinked() || !state.setupOwn || storeProvisionBusy) return;
     var name = (state.biz && state.biz.name || "").trim();
     if (name.length < 2) return;
     storeProvisionBusy = true;
@@ -2254,6 +2284,7 @@
     applyTheme();
     if (forceUpdateGate) return renderForcedUpdate();   // bloqueio absoluto de versão obsoleta
     if (isDemo() && demoLimitHit()) return renderDemoEnd();
+    if (authReady && authUser && !isDemo() && (authUser.accountType === "unassigned" || (authUser.accountType === "staff" && !storeLinked()))) return renderAccessPending();
     if (!authReady && flow !== "welcome" && !isDemo()) {
       // Dispositivo já configurado com sessão salva: NUNCA sai da comanda por falha
       // de rede/sessão. Opera com os dados locais; a conta revalida em 2º plano
@@ -2427,13 +2458,15 @@
     appEl.innerHTML = authFrame(
       '<h1 class="anton" style="font-size:25px;margin:10px 0 5px">Acesso ainda não liberado</h1>' +
       '<p class="ob-tag" style="font-size:13px">Use um convite para entrar como atendente ou um código simples para ativar o proprietário.</p>' +
-      '<label class="field" style="margin-top:16px"><span>Código de ativação (opcional)</span><input id="accesscode" inputmode="numeric" maxlength="8" autocomplete="one-time-code" placeholder="00000000"></label>' +
+      (authUser && authUser.accountType === "staff" ? '' : '<label class="field" style="margin-top:16px"><span>Código enviado pelo administrador</span><input id="accesscode" inputmode="numeric" maxlength="8" autocomplete="one-time-code" placeholder="00000000"></label>') +
       '<div id="accesserr" class="ob-tag" style="color:#ffb3c1;min-height:18px"></div>',
-      '<button class="btn bone block xl slab" id="accessgo">Ativar como proprietário</button>' +
+      (authUser && authUser.accountType === "staff" ? '' : '<button class="btn bone block xl slab" id="accessgo">Ativar como proprietário</button>') +
+      '<button class="btn ghost block" id="pendingteam" style="color:#fff">Acessar equipe ou aceitar convite</button>' +
       '<button class="btn ghost block" id="pendinglogout" style="color:#fff;border-color:rgba(255,255,255,.4)">Sair da conta</button>'
     );
     authWireSecret();
-    document.getElementById("accessgo").onclick = authRedeemAccess;
+    var activate = document.getElementById("accessgo"); if (activate) activate.onclick = authRedeemAccess;
+    document.getElementById("pendingteam").onclick = storeLinkSheet;
     document.getElementById("pendinglogout").onclick = authLogout;
   }
   function authStep1() {
@@ -2448,7 +2481,6 @@
       var m = iv.match(/(?:invite=|token=)([A-Za-z0-9_\-]+)/i);
       if (m) _pendingInvite = m[1];
       else if (iv.trim()) _pendingInvite = iv.trim().replace(/[^A-Za-z0-9_\-]/g, "");
-      if (!_pendingInvite) { renderWelcome("Cole o convite recebido pelo proprietário."); return; }
     }
     var btn = document.getElementById("authnext"); if (btn) { btn.disabled = true; btn.textContent = "Verificando…"; }
     authApi("/auth/check", "POST", { identifier: id }).then(function (j) {
@@ -3580,7 +3612,7 @@
         (state.store.status === "online" ? '<div class="cfg-row">Aparelhos ativos agora<span class="right muted">' + (state.store.devicesOnline || 1) + ' (este incluído)</span></div>' : ''));
       if (storeRole() === "full") {
       var sc1 = document.createElement("button"); sc1.className = "cfg-row act"; sc1.innerHTML = ic("plus", 17) + " Adicionar atendente";
-        sc1.onclick = storeTeamSheet; s2.appendChild(sc1);
+      sc1.onclick = storeTeamSheet; s2.appendChild(sc1);
       }
       var sc5 = document.createElement("button"); sc5.className = "cfg-row"; sc5.innerHTML = 'Trocar de loja<span class="right muted">›</span>';
       sc5.onclick = storeLinkSheet; s2.appendChild(sc5);
@@ -4121,7 +4153,7 @@
   // Só no modo PWA (site). Dentro do APK (Capacitor) os arquivos já vêm no pacote —
   // um SW aqui só arriscaria servir versão velha depois de atualizar o app.
   if (!window.Capacitor && "serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
-    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js?v=auto-10").catch(function (e) { reportError("serviceworker", { message: "registro do SW falhou: " + (e && e.message || e), stack: e && e.stack }); }); });
+    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js?v=auto-9").catch(function (e) { reportError("serviceworker", { message: "registro do SW falhou: " + (e && e.message || e), stack: e && e.stack }); }); });
   } else if (window.Capacitor && "serviceWorker" in navigator) {
     // Desativa apenas o SW deste app no APK, preservando os caches existentes.
     try {
@@ -4166,7 +4198,7 @@
 
   authInit().then(function (ok) {
     if (!ok) { licInit().then(function () { updBeat(); renderAll(); if (_pendingInvite) toast("Entre na sua conta para aceitar o convite"); }); return; }
-    authRestore().then(function () { licInit().then(function () { renderAll(); syncStart(); wakeLockMaybe(); updBeat(); handlePendingInvite(); }, function () { renderAll(); syncStart(); updBeat(); handlePendingInvite(); }); });
+    authAfterLogin();
   });
 })();
 </script>

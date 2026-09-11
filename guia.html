@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Como funciona o PedeAí</title>
+<link rel="canonical" href="https://pedeai.deckcorp.com.br/guia.html" />
+<meta name="description" content="Guia rápido e visual: veja como o PedeAí funciona na prática, da mesa aberta ao Pix recebido." />
+<meta name="theme-color" content="#1c1b19" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<meta property="og:title" content="Como funciona o PedeAí" />
+<meta property="og:description" content="Guia rápido e visual: da mesa aberta ao Pix recebido em 5 passos." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://pedeai.deckcorp.com.br/guia.html" />
+<meta property="og:image" content="https://pedeai.deckcorp.com.br/insta-carrossel-01-mesa.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+
+:root{
+  --paper:#FAF9F4;
+  --paper-2:#F0ECE1;
+  --ink:#1C1B19;
+  --ink-soft:#5B564C;
+  --red:#E5372A;
+  --red-dark:#A8261C;
+  --kraft:#C89B5B;
+  --green:#3E7D4F;
+  --line: rgba(28,27,25,0.16);
+  --line-strong: rgba(28,27,25,0.32);
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#1B1918;
+    --paper-2:#242220;
+    --ink:#F2EEE6;
+    --ink-soft:#B8B2A6;
+    --red:#FF5A46;
+    --red-dark:#FF7A68;
+    --kraft:#D9B074;
+    --green:#6FBF83;
+    --line: rgba(242,238,230,0.16);
+    --line-strong: rgba(242,238,230,0.34);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#1B1918;
+  --paper-2:#242220;
+  --ink:#F2EEE6;
+  --ink-soft:#B8B2A6;
+  --red:#FF5A46;
+  --red-dark:#FF7A68;
+  --kraft:#D9B074;
+  --green:#6FBF83;
+  --line: rgba(242,238,230,0.16);
+  --line-strong: rgba(242,238,230,0.34);
+}
+
+*{box-sizing:border-box;}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:'Archivo',system-ui,sans-serif;
+  margin:0;
+  padding-inline:0;
+}
+::selection{ background:var(--red); color:var(--paper); }
+
+.wrap{
+  max-width:640px;
+  margin:0 auto;
+  padding-inline:20px;
+}
+
+h1,h2,h3{ text-wrap:balance; margin:0; }
+p{ text-wrap:pretty; }
+
+.eyebrow{
+  font-family:'Space Mono',monospace;
+  font-size:12px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--ink-soft);
+}
+
+/* ---------- perforation divider ---------- */
+.perf{
+  height:22px;
+  width:100%;
+  background:
+    radial-gradient(circle at 50% 50%, var(--paper) 0 3.5px, transparent 3.6px) repeat-x;
+  background-size:20px 22px;
+  background-position: 10px center;
+}
+.perf.on-red{ background-color:var(--red); }
+.perf.on-ink{ background-color:var(--ink); }
+.perf.on-paper2{ background-color:var(--paper-2); }
+
+/* ---------- torn edges ---------- */
+.torn-bottom{
+  clip-path: polygon(
+    0% 0%, 100% 0%, 100% 88%,
+    96% 100%, 92% 88%, 88% 100%, 84% 88%, 80% 100%, 76% 88%, 72% 100%,
+    68% 88%, 64% 100%, 60% 88%, 56% 100%, 52% 88%, 48% 100%, 44% 88%,
+    40% 100%, 36% 88%, 32% 100%, 28% 88%, 24% 100%, 20% 88%, 16% 100%,
+    12% 88%, 8% 100%, 4% 88%, 0% 100%
+  );
+  padding-bottom:22px;
+}
+
+/* ---------- cover ---------- */
+.cover{
+  background:var(--ink);
+  color:var(--paper);
+  padding:40px 20px 0;
+  text-align:center;
+  overflow:hidden;
+}
+.cover-inner{ display:flex; flex-direction:column; align-items:center; gap:16px; }
+.brand-by{
+  font-family:'Space Mono',monospace;
+  font-size:10.5px;
+  letter-spacing:.2em;
+  text-transform:uppercase;
+  color:#8A8578;
+}
+.logo-mark{
+  display:inline-flex; align-items:center; gap:10px;
+  font-family:'Anton',sans-serif;
+  font-size:15px;
+  letter-spacing:.06em;
+  color:var(--paper);
+  border:2px solid var(--red);
+  padding:6px 14px;
+  border-radius:999px;
+}
+.logo-mark .dot{ width:8px; height:8px; border-radius:50%; background:var(--red); }
+
+/* printed ticket hero */
+.hero-ticket-wrap{ display:flex; flex-direction:column; align-items:center; margin-top:6px; }
+.printer{
+  width:184px; height:28px;
+  background:#08080A;
+  border-radius:7px 7px 2px 2px;
+  position:relative;
+  z-index:2;
+  box-shadow:0 8px 16px rgba(0,0,0,.4);
+}
+.printer-slot{
+  position:absolute; left:50%; bottom:3px; transform:translateX(-50%);
+  width:152px; height:5px;
+  background:#000;
+  border-radius:3px;
+  box-shadow: inset 0 2px 3px rgba(255,255,255,.12);
+}
+.hero-ticket{
+  width:206px;
+  background:var(--paper);
+  color:var(--ink);
+  margin-top:-3px;
+  padding:18px 16px 24px;
+  text-align:left;
+  z-index:1;
+  box-shadow:0 24px 44px -22px rgba(0,0,0,.55);
+}
+.ht-title{
+  font-family:'Anton',sans-serif;
+  font-size:19px;
+  letter-spacing:.03em;
+  text-align:center;
+  margin-bottom:8px;
+}
+.ht-dash{ border-top:1.5px dashed var(--line-strong); margin:7px 0; }
+.ht-row{
+  display:flex; justify-content:space-between; gap:10px;
+  font-family:'Space Mono',monospace;
+  font-size:10px;
+  padding:2px 0;
+  color:var(--ink-soft);
+}
+.ht-total{ font-weight:700; font-size:12px; color:var(--ink); }
+.ht-barcode{
+  height:24px;
+  margin-top:12px;
+  background: repeating-linear-gradient(90deg,
+    var(--ink) 0 2px, transparent 2px 3px,
+    var(--ink) 3px 4px, transparent 4px 7px,
+    var(--ink) 7px 9px, transparent 9px 11px,
+    var(--ink) 11px 12px, transparent 12px 15px
+  );
+}
+
+.cover h1{
+  font-family:'Anton',sans-serif;
+  font-size:clamp(36px, 9.5vw, 52px);
+  line-height:.98;
+  color:var(--paper);
+  text-transform:uppercase;
+  margin-top:6px;
+}
+.cover h1 em{ font-style:normal; color:var(--red); }
+.cover .sub{
+  font-family:'Space Mono',monospace;
+  font-size:13.5px;
+  color:#C9C4BA;
+  max-width:32ch;
+}
+.chip-row{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; padding-bottom:36px; }
+.chip{
+  font-family:'Space Mono',monospace;
+  font-size:11px;
+  letter-spacing:.05em;
+  padding:5px 10px;
+  border-radius:6px;
+  background:rgba(255,255,255,.08);
+  color:#D8D3C8;
+}
+
+/* ---------- ticket sections ---------- */
+.ticket{
+  background:var(--paper);
+  padding:44px 0 36px;
+}
+.ticket.alt{ background:var(--paper-2); }
+.ticket-head{
+  display:flex; align-items:baseline; gap:14px; margin-bottom:20px;
+}
+.step-no{
+  font-family:'Anton',sans-serif;
+  font-size:44px;
+  line-height:1;
+  color:var(--red);
+  min-width:56px;
+}
+.ticket-head h2{
+  font-family:'Anton',sans-serif;
+  font-size:clamp(22px,6vw,30px);
+  text-transform:uppercase;
+  letter-spacing:.01em;
+}
+.ticket-body{ display:grid; gap:22px; }
+.ticket-copy p{
+  font-size:15.5px;
+  line-height:1.55;
+  color:var(--ink-soft);
+  max-width:46ch;
+}
+.ticket-copy strong{ color:var(--ink); }
+
+/* ---------- phone mock ---------- */
+.phone{
+  width:220px;
+  border-radius:26px;
+  background:var(--ink);
+  padding:8px;
+  box-shadow: 0 18px 34px -18px rgba(0,0,0,.5);
+  margin-inline:auto;
+}
+.phone-screen{
+  background:var(--paper);
+  border-radius:18px;
+  overflow:hidden;
+  min-height:280px;
+  display:flex;
+  flex-direction:column;
+}
+.phone-bar{
+  background:var(--red);
+  color:#fff;
+  font-family:'Space Mono',monospace;
+  font-size:10px;
+  letter-spacing:.06em;
+  padding:8px 12px;
+  display:flex;
+  justify-content:space-between;
+}
+.phone-content{ padding:12px; flex:1; display:flex; flex-direction:column; gap:8px; }
+
+/* table grid mock */
+.table-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+.table-cell{
+  aspect-ratio:1;
+  border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Space Mono',monospace;
+  font-weight:700;
+  font-size:13px;
+  color:#fff;
+}
+.t-free{ background: var(--line-strong); color:var(--ink); }
+.t-busy{ background:var(--red); }
+.t-close{ background:var(--kraft); color:var(--ink); }
+
+/* order list mock */
+.order-row{
+  display:flex; justify-content:space-between; gap:8px;
+  font-size:11.5px;
+  padding:6px 0;
+  border-bottom:1px dashed var(--line);
+}
+.order-row .qty{ font-family:'Space Mono',monospace; color:var(--red); font-weight:700; min-width:22px; }
+.order-row .name{ flex:1; }
+.order-row .price{ font-family:'Space Mono',monospace; color:var(--ink-soft); }
+.order-total{
+  display:flex; justify-content:space-between;
+  font-family:'Space Mono',monospace;
+  font-weight:700;
+  font-size:13px;
+  margin-top:4px;
+  padding-top:8px;
+  border-top:2px solid var(--ink);
+}
+
+/* kitchen ticket mock */
+.kitchen-item{
+  display:flex; align-items:center; gap:8px;
+  padding:7px 8px;
+  border-radius:8px;
+  font-size:11.5px;
+  font-weight:600;
+}
+.kitchen-item .ring{
+  width:22px; height:22px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Space Mono',monospace; font-size:9px; font-weight:700; color:#fff;
+  flex-shrink:0;
+}
+.k-ok{ background:rgba(62,125,79,.14); }
+.k-ok .ring{ background:var(--green); }
+.k-warn{ background:rgba(200,155,91,.16); }
+.k-warn .ring{ background:var(--kraft); color:var(--ink); }
+.k-late{ background:rgba(229,55,42,.14); }
+.k-late .ring{ background:var(--red); }
+
+/* payment mock */
+.pay-methods{ display:flex; gap:6px; }
+.pay-pill{
+  flex:1;
+  text-align:center;
+  font-family:'Space Mono',monospace;
+  font-size:10px;
+  padding:8px 4px;
+  border-radius:8px;
+  border:1.5px solid var(--line-strong);
+}
+.pay-pill.on{ background:var(--red); color:#fff; border-color:var(--red); }
+.split-bar{
+  height:10px; border-radius:5px; overflow:hidden; display:flex;
+}
+.split-bar span:nth-child(1){ background:var(--red); flex:3; }
+.split-bar span:nth-child(2){ background:var(--kraft); flex:2; }
+.split-bar span:nth-child(3){ background:var(--green); flex:1; }
+
+/* roles mock */
+.roles{ display:grid; gap:6px; }
+.role-row{
+  display:flex; align-items:center; gap:8px;
+  font-size:11px;
+  padding:6px 8px;
+  border-radius:8px;
+  background:var(--paper-2);
+}
+.role-dot{ width:8px; height:8px; border-radius:50%; }
+
+/* ---------- feature grid ---------- */
+.grid-features{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:2px;
+  background:var(--line);
+  border:1px solid var(--line);
+}
+.feature{
+  background:var(--paper);
+  padding:18px 16px;
+  display:flex; flex-direction:column; gap:6px;
+}
+.feature .ico{ font-family:'Anton',sans-serif; font-size:20px; color:var(--red); }
+.feature h3{ font-size:13.5px; text-transform:uppercase; letter-spacing:.02em; }
+.feature p{ font-size:12.5px; color:var(--ink-soft); line-height:1.4; margin:0; }
+
+/* ---------- stamp ---------- */
+.stamp{
+  display:inline-flex; align-items:center; gap:8px;
+  border:2.5px solid var(--kraft);
+  color:var(--kraft);
+  font-family:'Anton',sans-serif;
+  font-size:13px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  padding:6px 14px;
+  border-radius:6px;
+  transform:rotate(-3deg);
+}
+
+/* ---------- closing / CTA ---------- */
+.closer{
+  background:var(--ink);
+  color:var(--paper);
+  padding:52px 0 40px;
+  text-align:center;
+}
+.closer .wrap{ display:flex; flex-direction:column; align-items:center; gap:18px; }
+.closer h2{
+  font-family:'Anton',sans-serif;
+  font-size:clamp(28px,7vw,40px);
+  text-transform:uppercase;
+  color:var(--paper);
+}
+.closer h2 em{ font-style:normal; color:var(--red); }
+.closer p{ color:#C9C4BA; max-width:38ch; font-size:14.5px; }
+.cta-row{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:6px; }
+.btn{
+  font-family:'Space Mono',monospace;
+  font-size:12.5px;
+  letter-spacing:.04em;
+  padding:12px 20px;
+  border-radius:8px;
+  text-decoration:none;
+  font-weight:700;
+}
+.btn.primary{ background:var(--red); color:#fff; }
+.btn.ghost{ border:1.5px solid rgba(255,255,255,.3); color:var(--paper); }
+.qr{
+  width:88px; height:88px;
+  border-radius:10px;
+  background:
+    repeating-linear-gradient(90deg, var(--paper) 0 6px, transparent 6px 12px),
+    repeating-linear-gradient(0deg, var(--paper) 0 6px, transparent 6px 12px);
+  background-blend-mode:screen;
+  background-color:#000;
+  margin-top:8px;
+}
+.foot-note{
+  font-family:'Space Mono',monospace;
+  font-size:10.5px;
+  color:#8A8578;
+  margin-top:18px;
+  line-height:1.7;
+  letter-spacing:.04em;
+}
+
+@media (prefers-reduced-motion:no-preference){
+  .ticket-body{ animation:rise .5s ease both; }
+  @keyframes rise{ from{ opacity:0; transform:translateY(10px);} to{opacity:1; transform:none;} }
+}
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="wrap cover-inner">
+    <span class="brand-by">DECKCORP APRESENTA</span>
+    <span class="logo-mark"><span class="dot"></span>PEDEAÍ</span>
+
+    <div class="hero-ticket-wrap">
+      <div class="printer"><div class="printer-slot"></div></div>
+      <div class="hero-ticket torn-bottom">
+        <div class="ht-title">PEDEAÍ</div>
+        <div class="ht-dash"></div>
+        <div class="ht-row"><span>3× ESPETINHO PICANHA</span><span>27,00</span></div>
+        <div class="ht-row"><span>2× CERVEJA LONG NECK</span><span>16,00</span></div>
+        <div class="ht-row"><span>1× FAROFA DA CASA</span><span>8,00</span></div>
+        <div class="ht-dash"></div>
+        <div class="ht-row ht-total"><span>TOTAL</span><span>R$ 60,00</span></div>
+        <div class="ht-barcode"></div>
+      </div>
+    </div>
+
+    <h1>A comanda virou <em>app</em>.<br>O resto é história.</h1>
+    <p class="sub">GUIA RÁPIDO — COMO FUNCIONA NA PRÁTICA, DA MESA ABERTA AO PIX RECEBIDO.</p>
+    <div class="chip-row">
+      <span class="chip">5 PASSOS</span>
+      <span class="chip">LEITURA: 2 MIN</span>
+      <span class="chip">FUNCIONA OFFLINE</span>
+    </div>
+  </div>
+</div>
+<div class="perf on-ink"></div>
+
+<!-- intro / exemplo -->
+<div class="ticket">
+  <div class="wrap">
+    <p class="eyebrow">O exemplo deste guia</p>
+    <h2 style="font-family:'Anton',sans-serif; font-size:clamp(24px,6vw,32px); text-transform:uppercase; margin-top:8px; line-height:1.05;">Trailer Brasa na Rua</h2>
+    <p style="color:var(--ink-soft); font-size:15px; line-height:1.6; max-width:46ch; margin-top:10px;">
+      Um food truck de espetinhos com 8 mesas na calçada, dois garçons e uma chapa só.
+      Sexta à noite lota — e é exatamente aí que a comanda de papel começa a sumir, a conta
+      demora e alguém esquece de cobrar a cerveja da mesa 4. O PedeAí resolve isso em 5 passos.
+    </p>
+  </div>
+</div>
+
+<div class="perf on-paper2"></div>
+
+<!-- passo 1 -->
+<div class="ticket alt">
+  <div class="wrap">
+    <div class="ticket-head">
+      <span class="step-no">01</span>
+      <h2>Abre a mesa</h2>
+    </div>
+    <div class="ticket-body" style="grid-template-columns:1fr 1fr; align-items:center;">
+      <div class="ticket-copy">
+        <p>O garçom toca na mesa vazia e ela já está <strong>aberta e com nome do cliente</strong>, sem papel, sem caneta perdida no bolso do avental.</p>
+        <p>Verde livre, vermelho ocupada, dourado pedindo a conta — todo mundo lê o salão de longe.</p>
+      </div>
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="phone-bar"><span>SALÃO</span><span>8 MESAS</span></div>
+          <div class="phone-content">
+            <div class="table-grid">
+              <div class="table-cell t-free">1</div>
+              <div class="table-cell t-busy">2</div>
+              <div class="table-cell t-free">3</div>
+              <div class="table-cell t-busy">4</div>
+              <div class="table-cell t-close">5</div>
+              <div class="table-cell t-free">6</div>
+              <div class="table-cell t-busy">7</div>
+              <div class="table-cell t-free">8</div>
+              <div class="table-cell t-free">9</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="perf on-red"></div>
+
+<!-- passo 2 -->
+<div class="ticket">
+  <div class="wrap">
+    <div class="ticket-head">
+      <span class="step-no">02</span>
+      <h2>Lança o pedido</h2>
+    </div>
+    <div class="ticket-body" style="grid-template-columns:1fr 1fr; align-items:center;">
+      <div class="phone" style="order:2;">
+        <div class="phone-screen">
+          <div class="phone-bar"><span>MESA 4</span><span>ITENS: 4</span></div>
+          <div class="phone-content">
+            <div class="order-row"><span class="qty">3×</span><span class="name">Espetinho picanha</span><span class="price">27,00</span></div>
+            <div class="order-row"><span class="qty">1×</span><span class="name">Espetinho queijo</span><span class="price">9,00</span></div>
+            <div class="order-row"><span class="qty">2×</span><span class="name">Cerveja long neck</span><span class="price">16,00</span></div>
+            <div class="order-row"><span class="qty">1×</span><span class="name">Farofa da casa</span><span class="price">8,00</span></div>
+            <div class="order-total"><span>TOTAL</span><span>R$ 60,00</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="ticket-copy" style="order:1;">
+        <p>Cada espetinho, cada long neck, cada farofa extra — tudo entra <strong>direto na conta da mesa</strong>, com preço puxado do cardápio. Zero conta de cabeça no fim da noite.</p>
+        <p>Dá pra colocar observação por item: "sem cebola", "ponto da carne ao ponto".</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="perf on-paper2"></div>
+
+<!-- passo 3 -->
+<div class="ticket alt">
+  <div class="wrap">
+    <div class="ticket-head">
+      <span class="step-no">03</span>
+      <h2>Chapa já sabe</h2>
+    </div>
+    <div class="ticket-body" style="grid-template-columns:1fr 1fr; align-items:center;">
+      <div class="ticket-copy">
+        <p>O pedido pousa na tela da cozinha <strong>no instante em que é enviado</strong> — sem gritar comanda por cima do barulho do trailer.</p>
+        <p>Cada item muda de cor sozinho conforme o tempo passa: verde é novo, amarelo é atenção, vermelho é "anda logo".</p>
+      </div>
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="phone-bar"><span>CHAPA</span><span>3 PEDIDOS</span></div>
+          <div class="phone-content" style="gap:6px;">
+            <div class="kitchen-item k-ok"><span class="ring">02:11</span> Mesa 2 — picanha</div>
+            <div class="kitchen-item k-warn"><span class="ring">06:40</span> Mesa 4 — 3 espetos</div>
+            <div class="kitchen-item k-late"><span class="ring">11:05</span> Mesa 7 — combo</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="perf on-red"></div>
+
+<!-- passo 4 -->
+<div class="ticket">
+  <div class="wrap">
+    <div class="ticket-head">
+      <span class="step-no">04</span>
+      <h2>Fecha a conta</h2>
+    </div>
+    <div class="ticket-body" style="grid-template-columns:1fr 1fr; align-items:center;">
+      <div class="phone" style="order:2;">
+        <div class="phone-screen">
+          <div class="phone-bar"><span>MESA 4</span><span>FECHAR</span></div>
+          <div class="phone-content">
+            <div class="pay-methods">
+              <div class="pay-pill on">PIX</div>
+              <div class="pay-pill">CARTÃO</div>
+              <div class="pay-pill">DINHEIRO</div>
+            </div>
+            <p style="font-family:'Space Mono',monospace; font-size:10px; color:var(--ink-soft); margin:6px 0 2px;">DIVIDIDO ENTRE 3 PESSOAS</p>
+            <div class="split-bar"><span></span><span></span><span></span></div>
+            <div class="order-total" style="border-top:none; padding-top:4px;"><span>CADA UM</span><span>R$ 20,00</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="ticket-copy" style="order:1;">
+        <p>Pix, cartão ou dinheiro no mesmo toque, com <strong>desconto e troco calculados</strong> na hora — e a conta pode ser dividida sem ninguém puxar calculadora.</p>
+        <p>O recibo vai por WhatsApp se o cliente quiser levar pra casa.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="perf on-paper2"></div>
+
+<!-- passo 5 -->
+<div class="ticket alt">
+  <div class="wrap">
+    <div class="ticket-head">
+      <span class="step-no">05</span>
+      <h2>Time todo junto</h2>
+    </div>
+    <div class="ticket-body" style="grid-template-columns:1fr 1fr; align-items:center;">
+      <div class="ticket-copy">
+        <p>Um QR Code coloca <strong>garçom, chapa e caixa no mesmo painel</strong>, cada um só vendo o que precisa ver.</p>
+        <p>Sem internet no fundo do trailer? O app segue funcionando e sincroniza assim que o sinal volta.</p>
+      </div>
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="phone-bar"><span>EQUIPE</span><span>ONLINE</span></div>
+          <div class="phone-content">
+            <div class="qr" style="margin:0 auto 8px;"></div>
+            <div class="roles">
+              <div class="role-row"><span class="role-dot" style="background:var(--red);"></span>Garçom — salão</div>
+              <div class="role-row"><span class="role-dot" style="background:var(--kraft);"></span>Chapa — cozinha</div>
+              <div class="role-row"><span class="role-dot" style="background:var(--green);"></span>Caixa — pagamento</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="perf on-ink"></div>
+
+<!-- extras -->
+<div class="ticket">
+  <div class="wrap">
+    <p class="eyebrow" style="margin-bottom:14px;">Também vem na caixa</p>
+    <div class="grid-features">
+      <div class="feature"><span class="ico">↺</span><h3>Repetir rodada</h3><p>Mandou bem? Repete o mesmo pedido com um toque.</p></div>
+      <div class="feature"><span class="ico">☁</span><h3>Backup na nuvem</h3><p>Trocou de celular, a operação do dia não some.</p></div>
+      <div class="feature"><span class="ico">🖶</span><h3>Impressão</h3><p>Manda pra impressora térmica do balcão também.</p></div>
+      <div class="feature"><span class="ico">🌙</span><h3>Tema escuro</h3><p>Pra quem atende de noite e não quer tela clara no olho.</p></div>
+    </div>
+    <div style="text-align:center; margin-top:24px;">
+      <span class="stamp">Pronto pra usar</span>
+    </div>
+  </div>
+</div>
+
+<div class="closer">
+  <div class="wrap">
+    <p class="eyebrow" style="color:#8A8578;">Bora testar</p>
+    <h2>Sua mesa também<br>merece <em>essa</em> comanda.</h2>
+    <p>Instala, abre a primeira mesa e sente a diferença ainda hoje — sem cartão, sem compromisso.</p>
+    <div class="cta-row">
+      <a class="btn primary" href="index.html">BAIXAR O APP</a>
+      <a class="btn ghost" href="app/">ABRIR VERSÃO WEB</a>
+    </div>
+    <div class="foot-note">PEDEAÍ — FEITO PRA QUEM VIVE DE MESA CHEIA<br>UM PRODUTO DECKCORP</div>
+  </div>
+</div>
+</body>
+</html>
